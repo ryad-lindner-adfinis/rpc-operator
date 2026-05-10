@@ -40,6 +40,9 @@ func TestDerivePhase(t *testing.T) {
 
 func TestBuildPodSpec_Defaults(t *testing.T) {
 	spec := buildPodSpec("hello-config", "")
+	if spec.RestartPolicy != corev1.RestartPolicyOnFailure {
+		t.Errorf("expected RestartPolicy=OnFailure, got %q", spec.RestartPolicy)
+	}
 	if len(spec.Containers) != 1 {
 		t.Fatalf("expected 1 container, got %d", len(spec.Containers))
 	}

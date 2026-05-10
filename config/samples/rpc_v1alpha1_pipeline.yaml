@@ -13,9 +13,9 @@ spec:
       interval: "1s"
       count: 5
   processors:
+    # The 'mapping' processor takes a scalar string body, not an object.
     - type: mapping
-      config:
-        mapping: "root = content().uppercase()"
+      config: "root = content().uppercase()"
   output:
     type: stdout
     config: {}

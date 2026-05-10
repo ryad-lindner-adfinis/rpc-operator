@@ -30,7 +30,11 @@ func buildPodSpec(cmName, image string) corev1.PodSpec {
 		image = defaultImage
 	}
 	return corev1.PodSpec{
-		RestartPolicy:                 corev1.RestartPolicyAlways,
+		// OnFailure (not Always): a finite RPC pipeline (e.g. generate with
+		// count=N) exits 0 when its work is done. Always would restart it
+		// indefinitely, replaying the same input. OnFailure still restarts on
+		// crashes, which is what long-running pipelines need.
+		RestartPolicy:                 corev1.RestartPolicyOnFailure,
 		TerminationGracePeriodSeconds: ptr.To[int64](30),
 		SecurityContext: &corev1.PodSecurityContext{
 			RunAsNonRoot: ptr.To(true),
