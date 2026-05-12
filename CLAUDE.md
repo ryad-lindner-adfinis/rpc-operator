@@ -1,5 +1,5 @@
 Rolle: Du bist ein Senior Software Architekt.
-Ziel: Technisches Design und PoC des Redpanda Connect Operator (RPC Operator).
+Ziel: Technisches Design und Implementierung des Redpanda Connect Operator (RPC Operator).
 Vorgehen: Iterativ, Feature by Feature
 
 ## Anforderungen
@@ -50,22 +50,11 @@ Einfache Bereitstellung: Pipelines werden als Kubernetes-Ressourcen verwaltet un
 Skalierbarkeit: Jede Pipeline läuft in einem eigenen Pod, was horizontale Skalierung ermöglicht.
 Resilienz: At-least-once-Delivery und Backpressure-Mechanismen sorgen für zuverlässige Datenverarbeitung.
 
-### 5. Beispiel-Workflow
+## Spezifikationen
 
-#### Step 1: Erstellen der Pipeline
+Alle Design-Entscheidung liegen in `docs/`. Lese immer relevante Specs bevor implementiert wird:
 
-Data Engineer öffnet die Web UI und wählt "neue Pipeline erstellen" aus. Auf einer Arbeitsfläche sieht er schematisch eine Pipeline Vorlage (Box mit gestrichelter Linie). Innerhalb der Pipeline-Box befinden sich 3 weitere Boxen; Input-Box, Processor-Box, Output-Box. Mit einem Plus-Symbol innerhalb jeder Box, kann er Input, Processoren und Output hinzufügen. 
-
-Er startet mit dem Hinzufügen des Input-Knotens. Nach dem Klick auf das Plus-Symbol öffnet sich ein Overlay indem er alle verfügbaren Redpanda Connect Inputs aufgelistet bekommt. Er wählt einen Input aus (z.B. NATS Jetstream) und fügt ihn damit in die Pipeline ein. In der Pipeline sieht man nun den NATS Jetsream Input. Analgo verfährt er mit den Processors und dem Output. 
-
-
-#### Step 2: Deployen der Pipeline
-
-Nach dem Klick auf "Deploy", wird eine passende Redpanda Connect YAML Konfiguration erzeugt und in Kuberntes als CR gespeichert.
-
-#### Step 3:  RPC Operator erkennt die neue CR und startet einen Pipeline-Pod.
-
-Der RPC Operator erzeugt einen Redpanda Connect Community Pod und übergibt die Konfiguration zur Ausführung.
-
-Zusammenfassung: RPC-Operator kombiniert die Flexibilität von Data Pipelines mit der Skalierbarkeit und Verwaltung von Kubernetes. Die Nutzung von CRDs und Operators ermöglicht eine nahtlose Integration in bestehende Kubernetes-Umgebungen und automatisierte Lebenszyklusverwaltung der Pipelines
-
+- `docs/prd.md` - Product Requirements mit Implementierungsstatus auf Release Ebene.
+- `docs/architecture.md` - System Architektur, Tech Stack.
+- `docs/adrs/*` - Dicision Log in Form von ADRs.
+- `docs/prps/*` - Product Requirements Prompt, Feature Implementation Plan
