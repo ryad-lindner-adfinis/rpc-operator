@@ -10,12 +10,40 @@ interface Props {
   onNewRaw: () => void
 }
 
+type SortKey = 'name' | 'phase' | 'pod' | 'updated'
+type SortDir = 'asc' | 'desc'
+
+const phaseOrder: Record<string, number> = { Running: 0, Pending: 1, Failed: 2, Stopped: 3 }
+
+function rawUpdated(p: Pipeline): string {
+  const times = (p.status?.conditions ?? []).map(c => c.lastTransitionTime).filter(Boolean) as string[]
+  return times.length > 0 ? times.reduce((a, b) => (a > b ? a : b)) : (p.metadata.creationTimestamp ?? '')
+}
+
+function sortPipelines(items: Pipeline[], key: SortKey, dir: SortDir): Pipeline[] {
+  return [...items].sort((a, b) => {
+    let cmp = 0
+    if (key === 'name')    cmp = a.metadata.name.localeCompare(b.metadata.name)
+    if (key === 'phase')   cmp = (phaseOrder[a.status?.phase ?? ''] ?? 9) - (phaseOrder[b.status?.phase ?? ''] ?? 9)
+    if (key === 'pod')     cmp = (a.status?.podName ?? '').localeCompare(b.status?.podName ?? '')
+    if (key === 'updated') cmp = rawUpdated(a).localeCompare(rawUpdated(b))
+    return dir === 'asc' ? cmp : -cmp
+  })
+}
+
 export function PipelineList({ namespace, onEdit, onViewDetail, onNew, onNewRaw }: Props) {
   const [pipelines, setPipelines] = useState<Pipeline[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const [sortKey, setSortKey] = useState<SortKey>('name')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+  function handleSort(key: SortKey) {
+    if (key === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
 
   function load() {
     listPipelines(namespace)
@@ -80,15 +108,15 @@ export function PipelineList({ namespace, onEdit, onViewDetail, onNew, onNewRaw 
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
             <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
-              <th style={thStyle}>Name</th>
-              <th style={thStyle}>Status</th>
-              <th style={thStyle}>Pod</th>
-              <th style={thStyle}>Letztes Update</th>
+              <th style={thStyle} onClick={() => handleSort('name')}    title="Sortieren"><SortHeader label="Name"          col="name"    sortKey={sortKey} sortDir={sortDir} /></th>
+              <th style={thStyle} onClick={() => handleSort('phase')}   title="Sortieren"><SortHeader label="Status"        col="phase"   sortKey={sortKey} sortDir={sortDir} /></th>
+              <th style={thStyle} onClick={() => handleSort('pod')}     title="Sortieren"><SortHeader label="Pod"           col="pod"     sortKey={sortKey} sortDir={sortDir} /></th>
+              <th style={thStyle} onClick={() => handleSort('updated')} title="Sortieren"><SortHeader label="Letztes Update" col="updated" sortKey={sortKey} sortDir={sortDir} /></th>
               <th style={thStyle}></th>
             </tr>
           </thead>
           <tbody>
-            {pipelines.map(p => (
+            {sortPipelines(pipelines, sortKey, sortDir).map(p => (
               <tr
                 key={p.metadata.name}
                 onClick={() => onViewDetail(p)}
@@ -158,7 +186,18 @@ function lastUpdated(p: Pipeline): string {
   return new Date(ts).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })
 }
 
-const thStyle: React.CSSProperties = { padding: '8px 12px', fontWeight: 600, fontSize: 13 }
+function SortHeader({ label, col, sortKey, sortDir }: { label: string; col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer', userSelect: 'none' }}>
+      {label}
+      <span style={{ fontSize: 10, color: sortKey === col ? '#3b82f6' : '#ccc', lineHeight: 1 }}>
+        {sortKey === col ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
+      </span>
+    </span>
+  )
+}
+
+const thStyle: React.CSSProperties = { padding: '8px 12px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }
 const tdStyle: React.CSSProperties = { padding: '10px 12px', verticalAlign: 'middle' }
 const iconBtnStyle: React.CSSProperties = {
   border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px',
