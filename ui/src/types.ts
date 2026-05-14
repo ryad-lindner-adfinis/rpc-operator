@@ -34,6 +34,7 @@ export interface Pipeline {
       status: string
       message?: string
       reason?: string
+      lastTransitionTime?: string
     }>
   }
 }

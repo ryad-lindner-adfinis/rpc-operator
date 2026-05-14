@@ -64,3 +64,12 @@ export async function updatePipeline(
     spec,
   })
 }
+
+export async function listPipelines(namespace: string): Promise<Pipeline[]> {
+  const data = await request<{ items: Pipeline[] }>('GET', `/namespaces/${namespace}/pipelines`)
+  return data.items ?? []
+}
+
+export async function deletePipeline(namespace: string, name: string): Promise<void> {
+  await request<void>('DELETE', `/namespaces/${namespace}/pipelines/${name}`)
+}
