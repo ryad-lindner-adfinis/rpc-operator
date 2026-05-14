@@ -61,6 +61,7 @@ func main() {
 	var enableLeaderElection bool
 	var probeAddr string
 	var apiAddr string
+	var prometheusURL string
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var tlsOpts []func(*tls.Config)
@@ -81,6 +82,8 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.StringVar(&apiAddr, "api-bind-address", ":8082",
 		"Address the REST API listens on. Empty string disables the API server.")
+	flag.StringVar(&prometheusURL, "prometheus-url", "",
+		"Prometheus base URL for PromQL queries (e.g. http://prometheus:9090). Empty disables metrics.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	opts := zap.Options{
@@ -192,7 +195,7 @@ func main() {
 	// +kubebuilder:scaffold:builder
 
 	if apiAddr != "" {
-		apiSrv, err := api.New(apiAddr, mgr.GetClient(), mgr.GetConfig())
+		apiSrv, err := api.New(apiAddr, mgr.GetClient(), mgr.GetConfig(), prometheusURL)
 		if err != nil {
 			setupLog.Error(err, "Failed to create API server")
 			os.Exit(1)

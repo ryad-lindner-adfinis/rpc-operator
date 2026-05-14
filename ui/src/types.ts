@@ -67,3 +67,14 @@ export interface ValidateResponse {
   valid: boolean
   errors?: ValidationError[]
 }
+
+export interface MetricsDatapoint {
+  t: number  // Unix timestamp (seconds)
+  v: number  // value (msg/s)
+}
+
+export interface MetricsResponse {
+  query: string
+  unit: string
+  datapoints: MetricsDatapoint[]
+}

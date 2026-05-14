@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Pipeline } from '../types'
+import { MetricsGraph } from './MetricsGraph'
 
 interface Props {
   pipeline: Pipeline
@@ -91,6 +92,14 @@ export function PipelineDetail({ pipeline, onEdit, onBack }: Props) {
           </table>
         </div>
       )}
+
+      {/* Metrics */}
+      <MetricsGraph
+        namespace={p.metadata.namespace}
+        pipelineName={p.metadata.name}
+        podName={p.status?.podName ?? ''}
+        isRunning={p.status?.phase === 'Running'}
+      />
 
       {/* Live Logs */}
       <div style={sectionStyle}>

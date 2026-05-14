@@ -27,18 +27,19 @@ import (
 
 // Server is an HTTP REST server that integrates with the controller-runtime Manager.
 type Server struct {
-	Addr      string
-	Client    client.Client
-	Clientset *kubernetes.Clientset // for pod log streaming; nil in tests
-	Catalog   *catalog.Catalog
-	srv       *http.Server
+	Addr          string
+	Client        client.Client
+	Clientset     *kubernetes.Clientset // for pod log streaming; nil in tests
+	Catalog       *catalog.Catalog
+	PrometheusURL string // empty = Prometheus not configured
+	srv           *http.Server
 }
 
 // Compile-time check that Server implements manager.Runnable.
 var _ manager.Runnable = (*Server)(nil)
 
 // New constructs a Server. Returns an error if the embedded catalog fails to load.
-func New(addr string, c client.Client, restCfg *rest.Config) (*Server, error) {
+func New(addr string, c client.Client, restCfg *rest.Config, prometheusURL string) (*Server, error) {
 	cat, err := catalog.Default()
 	if err != nil {
 		return nil, err
@@ -47,7 +48,7 @@ func New(addr string, c client.Client, restCfg *rest.Config) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("build clientset: %w", err)
 	}
-	return &Server{Addr: addr, Client: c, Clientset: cs, Catalog: cat}, nil
+	return &Server{Addr: addr, Client: c, Clientset: cs, Catalog: cat, PrometheusURL: prometheusURL}, nil
 }
 
 // Start implements manager.Runnable. Called by the manager once the cache is synced.
@@ -100,6 +101,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/catalog", s.handleCatalogList)
 	mux.HandleFunc("GET /api/v1/catalog/{category}/{name}", s.handleCatalogGet)
 	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/{name}/logs", s.handleLogStream)
+	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/{name}/metrics", s.handleMetrics)
 
 	// Serve the embedded SPA. Must come after all /api/v1/ routes (catch-all).
 	sub, err := fs.Sub(StaticFiles, "static")

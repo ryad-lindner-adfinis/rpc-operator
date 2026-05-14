@@ -1,4 +1,4 @@
-import type { CatalogComponent, Pipeline, PipelineSpec, ValidateResponse } from './types'
+import type { CatalogComponent, MetricsResponse, Pipeline, PipelineSpec, ValidateResponse } from './types'
 
 const BASE = '/api/v1'
 
@@ -72,4 +72,24 @@ export async function listPipelines(namespace: string): Promise<Pipeline[]> {
 
 export async function deletePipeline(namespace: string, name: string): Promise<void> {
   await request<void>('DELETE', `/namespaces/${namespace}/pipelines/${name}`)
+}
+
+export async function getMetrics(
+  namespace: string,
+  name: string,
+  query: 'throughput' | 'error_rate' | 'input_rate' | 'processor_error_rate',
+  startSec: number,
+  endSec: number,
+  step = '30s',
+): Promise<MetricsResponse> {
+  const params = new URLSearchParams({
+    query,
+    start: String(startSec),
+    end: String(endSec),
+    step,
+  })
+  return request<MetricsResponse>(
+    'GET',
+    `/namespaces/${namespace}/pipelines/${name}/metrics?${params}`,
+  )
 }
