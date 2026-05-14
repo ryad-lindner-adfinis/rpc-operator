@@ -23,6 +23,10 @@ import (
 // The rendered document also enables the HTTP server on :4195 for liveness and
 // readiness probes.
 func RenderPipelineYAML(spec *rpcv1alpha1.PipelineSpec) (string, error) {
+	if spec.RawYAML != "" {
+		return injectHTTPConfig(spec.RawYAML)
+	}
+
 	inputBlock, err := componentBlock(&spec.Input)
 	if err != nil {
 		return "", fmt.Errorf("input: %w", err)
@@ -50,6 +54,30 @@ func RenderPipelineYAML(spec *rpcv1alpha1.PipelineSpec) (string, error) {
 		},
 	}
 
+	out, err := yaml.Marshal(doc)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
+// injectHTTPConfig parses rawYAML, adds the http server block if absent, and
+// re-serializes. This ensures liveness/readiness probes and Prometheus scraping work.
+func injectHTTPConfig(rawYAML string) (string, error) {
+	var raw any
+	if err := yaml.Unmarshal([]byte(rawYAML), &raw); err != nil {
+		return "", fmt.Errorf("invalid YAML: %w", err)
+	}
+	doc, ok := raw.(map[string]any)
+	if !ok || doc == nil {
+		return "", fmt.Errorf("YAML must be a mapping")
+	}
+	if _, exists := doc["http"]; !exists {
+		doc["http"] = map[string]any{
+			"enabled": true,
+			"address": "0.0.0.0:4195",
+		}
+	}
 	out, err := yaml.Marshal(doc)
 	if err != nil {
 		return "", err

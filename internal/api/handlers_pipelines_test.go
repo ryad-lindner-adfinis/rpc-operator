@@ -487,3 +487,60 @@ func TestHandlerValidate_InvalidPipeline(t *testing.T) {
 		t.Errorf("expected valid=false for unknown component, got %s", result["valid"])
 	}
 }
+
+func rawPipelineBody(name, ns, rawYAML string) []byte {
+	p := map[string]any{
+		"apiVersion": "rpc.operator.io/v1alpha1",
+		"kind":       "Pipeline",
+		"metadata":   map[string]any{"name": name, "namespace": ns},
+		"spec":       map[string]any{"rawYAML": rawYAML},
+	}
+	b, _ := json.Marshal(p)
+	return b
+}
+
+func TestHandlerPipelines_Create_RawYAML(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.Close()
+
+	body := rawPipelineBody("raw-pipe", "default",
+		"input:\n  generate:\n    mapping: 'root = \"hi\"'\n    interval: 1s\noutput:\n  stdout: {}\n")
+	resp, err := http.Post(
+		ts.URL+"/api/v1/namespaces/default/pipelines",
+		"application/json",
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusCreated {
+		t.Errorf("expected 201, got %d", resp.StatusCode)
+	}
+	var result rpcv1alpha1.Pipeline
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if result.Spec.RawYAML == "" {
+		t.Error("expected spec.rawYAML to be set in stored CR")
+	}
+}
+
+func TestHandlerPipelines_Create_RawYAML_InvalidYAML(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.Close()
+
+	body := rawPipelineBody("bad-raw", "default", "{invalid: yaml: [")
+	resp, err := http.Post(
+		ts.URL+"/api/v1/namespaces/default/pipelines",
+		"application/json",
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Errorf("expected 422 for invalid rawYAML, got %d", resp.StatusCode)
+	}
+}

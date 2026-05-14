@@ -114,6 +114,12 @@ spec:
                   - type
                   type: object
                 type: array
+              rawYAML:
+                description: |-
+                  RawYAML holds a complete Redpanda Connect config in native YAML format.
+                  When set, Input, Processors, and Output are ignored; no catalog validation
+                  is performed. The HTTP server block is injected automatically if absent.
+                type: string
               replicas:
                 default: 1
                 description: 'v0.1: only single-replica pipelines. Multi-replica is
@@ -122,9 +128,6 @@ spec:
                 maximum: 1
                 minimum: 1
                 type: integer
-            required:
-            - input
-            - output
             type: object
           status:
             description: PipelineStatus defines the observed state of Pipeline.

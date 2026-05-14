@@ -41,14 +41,20 @@ type ComponentSpec struct {
 
 // PipelineSpec defines the desired state of Pipeline.
 type PipelineSpec struct {
-	// +kubebuilder:validation:Required
-	Input ComponentSpec `json:"input"`
+	// +optional
+	Input ComponentSpec `json:"input,omitempty"`
 
 	// +optional
 	Processors []ComponentSpec `json:"processors,omitempty"`
 
-	// +kubebuilder:validation:Required
-	Output ComponentSpec `json:"output"`
+	// +optional
+	Output ComponentSpec `json:"output,omitempty"`
+
+	// RawYAML holds a complete Redpanda Connect config in native YAML format.
+	// When set, Input, Processors, and Output are ignored; no catalog validation
+	// is performed. The HTTP server block is injected automatically if absent.
+	// +optional
+	RawYAML string `json:"rawYAML,omitempty"`
 
 	// v0.1: only single-replica pipelines. Multi-replica is v0.4+.
 	// +kubebuilder:default=1

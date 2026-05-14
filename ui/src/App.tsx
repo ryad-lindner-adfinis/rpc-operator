@@ -3,6 +3,7 @@ import { listCatalog, getPipeline } from './api'
 import { PipelineEditor } from './components/PipelineEditor'
 import { PipelineList } from './components/PipelineList'
 import { PipelineDetail } from './components/PipelineDetail'
+import { RawPipelineEditor } from './components/RawPipelineEditor'
 import { DeployBar } from './components/DeployBar'
 import type { CatalogComponent, Pipeline, PipelineSpec } from './types'
 
@@ -12,7 +13,7 @@ const DEFAULT_SPEC: PipelineSpec = {
   output: { type: 'stdout', config: {} },
 }
 
-type View = 'list' | 'editor' | 'detail'
+type View = 'list' | 'editor' | 'raw-editor' | 'detail'
 
 export default function App() {
   const [view, setView] = useState<View>('list')
@@ -21,6 +22,7 @@ export default function App() {
   const [spec, setSpec] = useState<PipelineSpec>(DEFAULT_SPEC)
   const [catalog, setCatalog] = useState<CatalogComponent[]>([])
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null)
+  const [editPipeline, setEditPipeline] = useState<Pipeline | undefined>(undefined)
 
   useEffect(() => { listCatalog().then(setCatalog).catch(console.error) }, [])
   const catalogCache = useMemo(
@@ -32,14 +34,27 @@ export default function App() {
     try {
       const loaded = await getPipeline(pipeline.metadata.namespace, pipeline.metadata.name)
       setNamespace(loaded.metadata.namespace)
-      setName(loaded.metadata.name)
-      setSpec(loaded.spec)
+      if (loaded.spec.rawYAML) {
+        setEditPipeline(loaded)
+        setView('raw-editor')
+      } else {
+        setName(loaded.metadata.name)
+        setSpec(loaded.spec)
+        setEditPipeline(undefined)
+        setView('editor')
+      }
     } catch {
       setNamespace(pipeline.metadata.namespace)
-      setName(pipeline.metadata.name)
-      setSpec(pipeline.spec)
+      if (pipeline.spec.rawYAML) {
+        setEditPipeline(pipeline)
+        setView('raw-editor')
+      } else {
+        setName(pipeline.metadata.name)
+        setSpec(pipeline.spec)
+        setEditPipeline(undefined)
+        setView('editor')
+      }
     }
-    setView('editor')
   }
 
   function handleViewDetail(pipeline: Pipeline) {
@@ -50,7 +65,13 @@ export default function App() {
   function handleNew() {
     setName('my-pipeline')
     setSpec(DEFAULT_SPEC)
+    setEditPipeline(undefined)
     setView('editor')
+  }
+
+  function handleNewRaw() {
+    setEditPipeline(undefined)
+    setView('raw-editor')
   }
 
   return (
@@ -89,6 +110,7 @@ export default function App() {
           onEdit={handleEdit}
           onViewDetail={handleViewDetail}
           onNew={handleNew}
+          onNewRaw={handleNewRaw}
         />
       )}
 
@@ -97,6 +119,15 @@ export default function App() {
           pipeline={selectedPipeline}
           onEdit={() => handleEdit(selectedPipeline)}
           onBack={() => setView('list')}
+        />
+      )}
+
+      {view === 'raw-editor' && (
+        <RawPipelineEditor
+          namespace={namespace}
+          editPipeline={editPipeline}
+          onBack={() => setView('list')}
+          onSaved={() => setView('list')}
         />
       )}
 

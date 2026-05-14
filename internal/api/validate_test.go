@@ -281,3 +281,66 @@ func TestValidate_MissingProcessorLabel(t *testing.T) {
 		t.Error("expected ValidationError for missing processor label")
 	}
 }
+
+func TestValidate_RawYAML_Valid(t *testing.T) {
+	cat := mustLoadCatalog(t)
+	p := &rpcv1alpha1.Pipeline{
+		ObjectMeta: metav1.ObjectMeta{Name: "raw-test"},
+		Spec: rpcv1alpha1.PipelineSpec{
+			RawYAML: "input:\n  generate:\n    mapping: 'root = \"hi\"'\n    interval: 1s\noutput:\n  stdout: {}\n",
+		},
+	}
+	errs := api.ValidatePipeline(p, cat)
+	if len(errs) != 0 {
+		t.Errorf("expected no errors for valid rawYAML, got %v", errs)
+	}
+}
+
+func TestValidate_RawYAML_InvalidYAML(t *testing.T) {
+	cat := mustLoadCatalog(t)
+	p := &rpcv1alpha1.Pipeline{
+		ObjectMeta: metav1.ObjectMeta{Name: "raw-test"},
+		Spec: rpcv1alpha1.PipelineSpec{
+			RawYAML: "{invalid: yaml: [",
+		},
+	}
+	errs := api.ValidatePipeline(p, cat)
+	if len(errs) == 0 {
+		t.Fatal("expected ValidationError for invalid YAML")
+	}
+	if errs[0].Path != "spec.rawYAML" {
+		t.Errorf("expected path spec.rawYAML, got %q", errs[0].Path)
+	}
+}
+
+func TestValidate_RawYAML_NotAMapping(t *testing.T) {
+	cat := mustLoadCatalog(t)
+	p := &rpcv1alpha1.Pipeline{
+		ObjectMeta: metav1.ObjectMeta{Name: "raw-test"},
+		Spec: rpcv1alpha1.PipelineSpec{
+			RawYAML: "- item1\n- item2\n",
+		},
+	}
+	errs := api.ValidatePipeline(p, cat)
+	if len(errs) == 0 {
+		t.Fatal("expected ValidationError for non-mapping YAML")
+	}
+	if errs[0].Path != "spec.rawYAML" {
+		t.Errorf("expected path spec.rawYAML, got %q", errs[0].Path)
+	}
+}
+
+func TestValidate_RawYAML_SkipsCatalogValidation(t *testing.T) {
+	cat := mustLoadCatalog(t)
+	// Uses a component type that is NOT in the catalog — should pass in raw mode.
+	p := &rpcv1alpha1.Pipeline{
+		ObjectMeta: metav1.ObjectMeta{Name: "raw-test"},
+		Spec: rpcv1alpha1.PipelineSpec{
+			RawYAML: "input:\n  kafka_franz:\n    seed_brokers: [broker:9092]\noutput:\n  stdout: {}\n",
+		},
+	}
+	errs := api.ValidatePipeline(p, cat)
+	if len(errs) != 0 {
+		t.Errorf("catalog validation should be skipped in raw mode, got %v", errs)
+	}
+}

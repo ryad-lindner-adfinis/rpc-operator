@@ -22,6 +22,14 @@ type ValidationError struct {
 // ValidatePipeline schema-validates each component against the catalog and then
 // performs a render dry-run. Returns nil if the pipeline is valid.
 func ValidatePipeline(p *rpcv1alpha1.Pipeline, cat *catalog.Catalog) []ValidationError {
+	if p.Spec.RawYAML != "" {
+		// Raw mode: skip catalog validation; only check YAML syntax via render dry-run.
+		if _, err := render.RenderPipelineYAML(&p.Spec); err != nil {
+			return []ValidationError{{Path: "spec.rawYAML", Message: err.Error()}}
+		}
+		return nil
+	}
+
 	var errs []ValidationError
 	errs = append(errs, validateComponent("spec.input", &p.Spec.Input, "inputs", cat)...)
 	for i := range p.Spec.Processors {

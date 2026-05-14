@@ -12,6 +12,7 @@ export interface PipelineSpec {
   input?: ComponentSpec
   processors?: ComponentSpec[]
   output?: ComponentSpec
+  rawYAML?: string
   replicas?: number
   image?: string
 }
