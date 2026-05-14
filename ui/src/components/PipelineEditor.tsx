@@ -19,6 +19,10 @@ export function PipelineEditor({ spec, catalogCache, onChange }: Props) {
   const [yamlError, setYamlError] = useState<string>()
 
   function switchToYaml() {
+    if (!spec.input || !spec.output) {
+      setYamlError('Input und Output müssen belegt sein bevor in den YAML-Modus gewechselt wird.')
+      return
+    }
     setYamlText(specToYaml(spec))
     setYamlError(undefined)
     setMode('yaml')
@@ -46,13 +50,13 @@ export function PipelineEditor({ spec, catalogCache, onChange }: Props) {
   }
 
   function setInput(items: ComponentSpec[]) {
-    onChange({ ...spec, input: items[0] ?? spec.input })
+    onChange({ ...spec, input: items[0] })
   }
   function setProcessors(items: ComponentSpec[]) {
     onChange({ ...spec, processors: items })
   }
   function setOutput(items: ComponentSpec[]) {
-    onChange({ ...spec, output: items[0] ?? spec.output })
+    onChange({ ...spec, output: items[0] })
   }
 
   return (

@@ -8,9 +8,9 @@ export interface ComponentSpec {
 }
 
 export interface PipelineSpec {
-  input: ComponentSpec
+  input?: ComponentSpec
   processors?: ComponentSpec[]
-  output: ComponentSpec
+  output?: ComponentSpec
   replicas?: number
   image?: string
 }

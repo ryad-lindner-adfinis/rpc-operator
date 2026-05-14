@@ -68,12 +68,25 @@ export function ComponentBox({ title, category, multi, items, catalogCache, onCh
                   </span>
                 )}
               </div>
-              <button
-                onClick={() => handleRemove(idx)}
-                style={{ color: '#c00', border: 'none', background: 'none', cursor: 'pointer' }}
-              >
-                ✕
-              </button>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {!multi && (
+                  <button
+                    onClick={() => setPicking(true)}
+                    style={{
+                      color: '#555', border: '1px solid #ccc', background: 'none',
+                      cursor: 'pointer', borderRadius: 3, fontSize: 12, padding: '1px 8px',
+                    }}
+                  >
+                    Ändern
+                  </button>
+                )}
+                <button
+                  onClick={() => handleRemove(idx)}
+                  style={{ color: '#c00', border: 'none', background: 'none', cursor: 'pointer' }}
+                >
+                  ✕
+                </button>
+              </div>
             </div>
             {comp && (
               <SchemaForm
