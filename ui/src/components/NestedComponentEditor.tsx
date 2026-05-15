@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { X } from 'lucide-react'
 import { ComponentPicker } from './ComponentPicker'
 import type { CatalogComponent, ComponentSpec } from '../types'
 
@@ -87,9 +88,9 @@ export function NestedComponentEditor({
               <strong style={{ fontSize: 13 }}>{item.type}</strong>
               <button
                 onClick={() => handleRemove(idx)}
-                style={{ color: '#c00', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}
+                style={{ color: '#c00', border: 'none', background: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}
               >
-                ✕
+                <X size={14} />
               </button>
             </div>
             {comp && (

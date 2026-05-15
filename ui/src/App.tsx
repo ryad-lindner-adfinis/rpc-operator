@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Toaster } from 'sonner'
 import { listCatalog, getPipeline } from './api'
+import benthosLogo from './assets/benthos-logo.svg'
 import { PipelineEditor } from './components/PipelineEditor'
 import { PipelineList } from './components/PipelineList'
 import { PipelineDetail } from './components/PipelineDetail'
@@ -76,21 +78,16 @@ export default function App() {
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, fontFamily: 'system-ui, sans-serif' }}>
+      <Toaster position="bottom-right" richColors />
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, margin: 0 }}>RPC Operator</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={() => setView('list')}
-            style={{ ...tabStyle, ...(view === 'list' ? tabActiveStyle : {}) }}
-          >
-            Pipelines
-          </button>
-          <button
-            onClick={() => setView('editor')}
-            style={{ ...tabStyle, ...(view === 'editor' ? tabActiveStyle : {}) }}
-          >
-            Editor
-          </button>
+        <img
+          src={benthosLogo}
+          alt="Benthos"
+          style={{ height: 52, width: 'auto', flexShrink: 0 }}
+        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <h1 style={{ fontSize: 20, margin: 0, fontWeight: 600, lineHeight: 1.2 }}>Redpanda Connect Operator</h1>
+          <span style={{ fontSize: 12, color: '#aaa', lineHeight: 1 }}>aka Benthos</span>
         </div>
         <div style={{ marginLeft: 'auto' }}>
           <label style={{ fontSize: 13, color: '#555' }}>
@@ -133,7 +130,8 @@ export default function App() {
 
       {view === 'editor' && (
         <>
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+            <button onClick={() => setView('list')} style={backLinkStyle}>← Zurück</button>
             <label style={{ fontSize: 14 }}>
               Pipeline-Name&nbsp;
               <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} />
@@ -147,12 +145,8 @@ export default function App() {
   )
 }
 
-const tabStyle: React.CSSProperties = {
-  padding: '4px 14px', border: '1px solid #ccc', borderRadius: 4,
-  background: 'none', cursor: 'pointer', fontSize: 14,
-}
-const tabActiveStyle: React.CSSProperties = {
-  background: '#3b82f6', color: '#fff', borderColor: '#3b82f6',
+const backLinkStyle: React.CSSProperties = {
+  border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#3b82f6',
 }
 const nsInputStyle: React.CSSProperties = {
   padding: '3px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 13,

@@ -47,6 +47,7 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+        <button onClick={onBack} style={backBtnStyle}>← Zurück</button>
         <label style={{ fontSize: 14 }}>
           Pipeline-Name&nbsp;
           <input
@@ -82,8 +83,7 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
         <div style={errorBannerStyle}>{error}</div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-        <button onClick={onBack} style={backBtnStyle}>← Zurück</button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
         <button onClick={handleDeploy} disabled={saving} style={deployBtnStyle}>
           {saving ? 'Deploying…' : editPipeline ? 'Update' : 'Deploy'}
         </button>
@@ -100,8 +100,7 @@ const errorBannerStyle: React.CSSProperties = {
   borderRadius: 4, fontSize: 13, marginBottom: 8,
 }
 const backBtnStyle: React.CSSProperties = {
-  padding: '6px 16px', background: 'none', border: '1px solid #ccc',
-  borderRadius: 4, cursor: 'pointer', fontSize: 14,
+  border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#3b82f6',
 }
 const deployBtnStyle: React.CSSProperties = {
   padding: '6px 20px', background: '#3b82f6', color: '#fff',

@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import * as Dialog from '@radix-ui/react-dialog'
+import { toast } from 'sonner'
+import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Pencil, X } from 'lucide-react'
 import { listPipelines, deletePipeline } from '../api'
 import type { Pipeline } from '../types'
 
@@ -40,6 +43,7 @@ export function PipelineList({ namespace, onEdit, onViewDetail, onNew, onNewRaw 
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [deletingNames, setDeletingNames] = useState<Set<string>>(new Set())
+  const [pipelineToDelete, setPipelineToDelete] = useState<Pipeline | null>(null)
 
   function handleSort(key: SortKey) {
     if (key === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -70,15 +74,23 @@ export function PipelineList({ namespace, onEdit, onViewDetail, onNew, onNewRaw 
     return () => document.removeEventListener('mousedown', handleClick)
   }, [dropdownOpen])
 
-  async function handleDelete(p: Pipeline, e: React.MouseEvent) {
+  function requestDelete(p: Pipeline, e: React.MouseEvent) {
     e.stopPropagation()
-    if (!confirm(`Pipeline "${p.metadata.name}" löschen?`)) return
+    setPipelineToDelete(p)
+  }
+
+  async function confirmDelete() {
+    if (!pipelineToDelete) return
+    const p = pipelineToDelete
+    setPipelineToDelete(null)
     setDeletingNames(prev => new Set(prev).add(p.metadata.name))
     try {
       await deletePipeline(p.metadata.namespace, p.metadata.name)
+      toast.success(`Pipeline „${p.metadata.name}" gelöscht`)
       load()
     } catch (err) {
       console.error(err)
+      toast.error(`Fehler beim Löschen von „${p.metadata.name}"`)
       setDeletingNames(prev => { const s = new Set(prev); s.delete(p.metadata.name); return s })
       load()
     }
@@ -97,7 +109,7 @@ export function PipelineList({ namespace, onEdit, onViewDetail, onNew, onNewRaw 
             onClick={() => setDropdownOpen(o => !o)}
             style={{ ...newBtnStyle, padding: '6px 8px', borderLeft: '1px solid rgba(255,255,255,0.4)', borderRadius: '0 4px 4px 0' }}
             aria-label="Weitere Optionen"
-          >▾</button>
+          ><ChevronDown size={14} /></button>
           {dropdownOpen && (
             <div style={dropdownMenuStyle}>
               <button
@@ -149,15 +161,15 @@ export function PipelineList({ namespace, onEdit, onViewDetail, onNew, onNewRaw 
                       disabled={isDeleting}
                       style={{ ...iconBtnStyle, color: isDeleting ? '#ccc' : '#3b82f6' }}
                     >
-                      ✎
+                      <Pencil size={14} />
                     </button>
                     <button
-                      onClick={e => handleDelete(p, e)}
+                      onClick={e => requestDelete(p, e)}
                       title="Löschen"
                       disabled={isDeleting}
                       style={{ ...iconBtnStyle, marginLeft: 4, color: isDeleting ? '#ccc' : '#ef4444' }}
                     >
-                      ✕
+                      <X size={14} />
                     </button>
                   </td>
                 </tr>
@@ -166,6 +178,27 @@ export function PipelineList({ namespace, onEdit, onViewDetail, onNew, onNewRaw 
           </tbody>
         </table>
       )}
+
+      <Dialog.Root open={!!pipelineToDelete} onOpenChange={open => { if (!open) setPipelineToDelete(null) }}>
+        <Dialog.Portal>
+          <Dialog.Overlay style={dialogOverlayStyle} />
+          <Dialog.Content style={dialogContentStyle}>
+            <Dialog.Title style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 600 }}>
+              Pipeline löschen
+            </Dialog.Title>
+            <Dialog.Description style={{ color: '#555', fontSize: 14, margin: '0 0 20px', lineHeight: 1.5 }}>
+              Pipeline <strong>„{pipelineToDelete?.metadata.name}"</strong> wirklich löschen?
+              Diese Aktion kann nicht rückgängig gemacht werden.
+            </Dialog.Description>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <Dialog.Close asChild>
+                <button style={dialogCancelBtnStyle}>Abbrechen</button>
+              </Dialog.Close>
+              <button onClick={confirmDelete} style={dialogDeleteBtnStyle}>Löschen</button>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   )
 }
@@ -201,12 +234,12 @@ function lastUpdated(p: Pipeline): string {
 }
 
 function SortHeader({ label, col, sortKey, sortDir }: { label: string; col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  const active = sortKey === col
+  const Icon = active ? (sortDir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer', userSelect: 'none' }}>
       {label}
-      <span style={{ fontSize: 10, color: sortKey === col ? '#3b82f6' : '#ccc', lineHeight: 1 }}>
-        {sortKey === col ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
-      </span>
+      <Icon size={12} color={active ? '#3b82f6' : '#ccc'} />
     </span>
   )
 }
@@ -230,4 +263,20 @@ const dropdownItemStyle: React.CSSProperties = {
   display: 'block', width: '100%', padding: '8px 16px', textAlign: 'left',
   background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#111',
   whiteSpace: 'nowrap',
+}
+const dialogOverlayStyle: React.CSSProperties = {
+  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 200,
+}
+const dialogContentStyle: React.CSSProperties = {
+  position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+  background: '#fff', borderRadius: 8, padding: 24, width: 400, maxWidth: '90vw',
+  boxShadow: '0 8px 32px rgba(0,0,0,0.18)', zIndex: 201,
+}
+const dialogCancelBtnStyle: React.CSSProperties = {
+  padding: '7px 16px', border: '1px solid #ccc', borderRadius: 4,
+  background: 'none', cursor: 'pointer', fontSize: 14,
+}
+const dialogDeleteBtnStyle: React.CSSProperties = {
+  padding: '7px 16px', border: 'none', borderRadius: 4,
+  background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600,
 }

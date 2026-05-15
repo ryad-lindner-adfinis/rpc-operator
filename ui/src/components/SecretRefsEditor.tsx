@@ -1,3 +1,4 @@
+import { X } from 'lucide-react'
 import type { SecretRef } from '../types'
 
 interface Props {
@@ -46,7 +47,7 @@ export function SecretRefsEditor({ value, onChange }: Props) {
             onChange={e => update(i, 'key', e.target.value)}
             style={inputStyle}
           />
-          <button onClick={() => remove(i)} style={removeBtnStyle}>✕</button>
+          <button onClick={() => remove(i)} style={removeBtnStyle}><X size={14} /></button>
         </div>
       ))}
       <button onClick={add} style={addBtnStyle}>+ Secret hinzufügen</button>

@@ -1,0 +1,9 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Form elements don't inherit font by default in most browsers */
+input, select, textarea, button {
+  font-family: inherit;
+  font-size: inherit;
+}

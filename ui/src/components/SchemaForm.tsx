@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { X } from 'lucide-react'
 import Form from '@rjsf/core'
 import validator from '@rjsf/validator-ajv8'
 import type { IconButtonProps, ArrayFieldTemplateItemType, FieldTemplateProps, ArrayFieldTemplateProps } from '@rjsf/utils'
@@ -87,9 +88,9 @@ const ArrayItemTemplate = ({ children, hasRemove, onDropIndexClick, index }: Arr
     {hasRemove && (
       <button
         onClick={onDropIndexClick(index)}
-        style={{ color: '#c00', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
+        style={{ color: '#c00', border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, flexShrink: 0, display: 'flex' }}
       >
-        ✕
+        <X size={14} />
       </button>
     )}
   </div>

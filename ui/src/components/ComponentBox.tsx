@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ChevronDown, ChevronRight, X } from 'lucide-react'
 import { ComponentPicker } from './ComponentPicker'
 import { SchemaForm } from './SchemaForm'
 import type { CatalogComponent, ComponentSpec } from '../types'
@@ -69,7 +70,7 @@ export function ComponentBox({ title, category, multi, items, catalogCache, onCh
                 style={chevronBtnStyle}
                 title={open ? 'Einklappen' : 'Ausklappen'}
               >
-                {open ? '▼' : '▶'}
+                {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
               </button>
 
               {multi ? (
@@ -100,7 +101,7 @@ export function ComponentBox({ title, category, multi, items, catalogCache, onCh
                   </button>
                 )}
                 <button onClick={() => handleRemove(idx)} style={removeBtnStyle}>
-                  ✕
+                  <X size={14} />
                 </button>
               </div>
             </div>
