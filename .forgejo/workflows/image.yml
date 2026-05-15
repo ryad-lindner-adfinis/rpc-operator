@@ -14,7 +14,7 @@ permissions:
 jobs:
   build-push:
     name: Multi-arch build & push to Forgejo registry
-    runs-on: self-hosted
+    runs-on: docker
     # Alpine runner default container lacks node/bash — use act-compatible image
     container:
       image: catthehacker/ubuntu:act-latest
