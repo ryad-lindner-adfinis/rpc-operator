@@ -25,7 +25,7 @@ const (
 	rpcUID          = int64(10001)
 )
 
-func buildPodSpec(cmName, image string) corev1.PodSpec {
+func buildPodSpec(cmName, image string, envVars []corev1.EnvVar) corev1.PodSpec {
 	if image == "" {
 		image = defaultImage
 	}
@@ -86,6 +86,7 @@ func buildPodSpec(cmName, image string) corev1.PodSpec {
 					corev1.ResourceMemory: resource.MustParse("256Mi"),
 				},
 			},
+			Env: envVars,
 			VolumeMounts: []corev1.VolumeMount{{
 				Name:      "cfg",
 				MountPath: configMountPath,

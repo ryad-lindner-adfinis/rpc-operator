@@ -128,6 +128,35 @@ spec:
                 maximum: 1
                 minimum: 1
                 type: integer
+              secretRefs:
+                description: |-
+                  SecretRefs maps Kubernetes Secret keys to environment variables injected
+                  into the pipeline Pod. Reference them in RPC YAML as ${ENV_VAR}.
+                items:
+                  description: |-
+                    SecretRef binds a Kubernetes Secret key to an environment variable name
+                    that is injected into the pipeline Pod container. Reference the variable
+                    in RPC YAML as ${ENV_VAR}.
+                  properties:
+                    envVar:
+                      description: |-
+                        EnvVar is the environment variable name exposed to the RPC process.
+                        Must match [A-Za-z_][A-Za-z0-9_]*.
+                      pattern: ^[A-Za-z_][A-Za-z0-9_]*$
+                      type: string
+                    key:
+                      description: Key is the key within the Secret's data map.
+                      type: string
+                    secretName:
+                      description: SecretName is the name of the Kubernetes Secret
+                        in the same namespace.
+                      type: string
+                  required:
+                  - envVar
+                  - key
+                  - secretName
+                  type: object
+                type: array
             type: object
           status:
             description: PipelineStatus defines the observed state of Pipeline.

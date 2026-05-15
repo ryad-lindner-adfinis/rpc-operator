@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"regexp"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -12,6 +13,8 @@ import (
 	"github.com/insidegreen/rpc-operator-claude/internal/api/catalog"
 	"github.com/insidegreen/rpc-operator-claude/internal/render"
 )
+
+var envVarNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // ValidationError describes a single schema or render validation failure.
 type ValidationError struct {
@@ -24,10 +27,15 @@ type ValidationError struct {
 func ValidatePipeline(p *rpcv1alpha1.Pipeline, cat *catalog.Catalog) []ValidationError {
 	if p.Spec.RawYAML != "" {
 		// Raw mode: skip catalog validation; only check YAML syntax via render dry-run.
+		var errs []ValidationError
 		if _, err := render.RenderPipelineYAML(&p.Spec); err != nil {
-			return []ValidationError{{Path: "spec.rawYAML", Message: err.Error()}}
+			errs = append(errs, ValidationError{Path: "spec.rawYAML", Message: err.Error()})
 		}
-		return nil
+		errs = append(errs, validateSecretRefs(p.Spec.SecretRefs)...)
+		if len(errs) == 0 {
+			return nil
+		}
+		return errs
 	}
 
 	var errs []ValidationError
@@ -44,8 +52,34 @@ func ValidatePipeline(p *rpcv1alpha1.Pipeline, cat *catalog.Catalog) []Validatio
 	}
 	errs = append(errs, validateComponent("spec.output", &p.Spec.Output, "outputs", cat)...)
 
+	errs = append(errs, validateSecretRefs(p.Spec.SecretRefs)...)
+
 	if _, rerr := render.RenderPipelineYAML(&p.Spec); rerr != nil {
 		errs = append(errs, ValidationError{Path: "spec", Message: "render failed: " + rerr.Error()})
+	}
+	return errs
+}
+
+// validateSecretRefs checks that every SecretRef has valid, non-duplicate fields.
+func validateSecretRefs(refs []rpcv1alpha1.SecretRef) []ValidationError {
+	var errs []ValidationError
+	seen := map[string]bool{}
+	for i, r := range refs {
+		path := fmt.Sprintf("spec.secretRefs[%d]", i)
+		if r.EnvVar == "" {
+			errs = append(errs, ValidationError{Path: path + ".envVar", Message: "envVar is required"})
+		} else if !envVarNameRe.MatchString(r.EnvVar) {
+			errs = append(errs, ValidationError{Path: path + ".envVar", Message: "envVar must match [A-Za-z_][A-Za-z0-9_]*"})
+		} else if seen[r.EnvVar] {
+			errs = append(errs, ValidationError{Path: path + ".envVar", Message: fmt.Sprintf("duplicate envVar %q", r.EnvVar)})
+		}
+		seen[r.EnvVar] = true
+		if r.SecretName == "" {
+			errs = append(errs, ValidationError{Path: path + ".secretName", Message: "secretName is required"})
+		}
+		if r.Key == "" {
+			errs = append(errs, ValidationError{Path: path + ".key", Message: "key is required"})
+		}
 	}
 	return errs
 }

@@ -39,6 +39,25 @@ type ComponentSpec struct {
 	Config runtime.RawExtension `json:"config,omitempty"`
 }
 
+// SecretRef binds a Kubernetes Secret key to an environment variable name
+// that is injected into the pipeline Pod container. Reference the variable
+// in RPC YAML as ${ENV_VAR}.
+type SecretRef struct {
+	// EnvVar is the environment variable name exposed to the RPC process.
+	// Must match [A-Za-z_][A-Za-z0-9_]*.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^[A-Za-z_][A-Za-z0-9_]*$`
+	EnvVar string `json:"envVar"`
+
+	// SecretName is the name of the Kubernetes Secret in the same namespace.
+	// +kubebuilder:validation:Required
+	SecretName string `json:"secretName"`
+
+	// Key is the key within the Secret's data map.
+	// +kubebuilder:validation:Required
+	Key string `json:"key"`
+}
+
 // PipelineSpec defines the desired state of Pipeline.
 type PipelineSpec struct {
 	// +optional
@@ -66,6 +85,11 @@ type PipelineSpec struct {
 	// +kubebuilder:default="docker.redpanda.com/redpandadata/connect:4"
 	// +optional
 	Image string `json:"image,omitempty"`
+
+	// SecretRefs maps Kubernetes Secret keys to environment variables injected
+	// into the pipeline Pod. Reference them in RPC YAML as ${ENV_VAR}.
+	// +optional
+	SecretRefs []SecretRef `json:"secretRefs,omitempty"`
 }
 
 // PipelinePhase reports the high-level lifecycle stage of a Pipeline's pod.

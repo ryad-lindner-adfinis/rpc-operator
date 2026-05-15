@@ -39,7 +39,7 @@ func TestDerivePhase(t *testing.T) {
 }
 
 func TestBuildPodSpec_Defaults(t *testing.T) {
-	spec := buildPodSpec("hello-config", "")
+	spec := buildPodSpec("hello-config", "", nil)
 	if spec.RestartPolicy != corev1.RestartPolicyOnFailure {
 		t.Errorf("expected RestartPolicy=OnFailure, got %q", spec.RestartPolicy)
 	}
@@ -74,8 +74,41 @@ func TestBuildPodSpec_Defaults(t *testing.T) {
 }
 
 func TestBuildPodSpec_CustomImage(t *testing.T) {
-	spec := buildPodSpec("cm", "ghcr.io/redpanda-data/connect:4.36.1")
+	spec := buildPodSpec("cm", "ghcr.io/redpanda-data/connect:4.36.1", nil)
 	if spec.Containers[0].Image != "ghcr.io/redpanda-data/connect:4.36.1" {
 		t.Errorf("custom image not propagated: %v", spec.Containers[0].Image)
+	}
+}
+
+func TestBuildPodSpec_SecretRefs(t *testing.T) {
+	envVars := []corev1.EnvVar{{
+		Name: "MY_SECRET",
+		ValueFrom: &corev1.EnvVarSource{
+			SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: "my-secret"},
+				Key:                  "password",
+			},
+		},
+	}}
+	spec := buildPodSpec("cm", "", envVars)
+	if len(spec.Containers[0].Env) != 1 {
+		t.Fatalf("expected 1 env var, got %d", len(spec.Containers[0].Env))
+	}
+	env := spec.Containers[0].Env[0]
+	if env.Name != "MY_SECRET" {
+		t.Errorf("expected env name MY_SECRET, got %s", env.Name)
+	}
+	if env.ValueFrom == nil || env.ValueFrom.SecretKeyRef == nil {
+		t.Fatal("expected SecretKeyRef, got nil")
+	}
+	if env.ValueFrom.SecretKeyRef.Name != "my-secret" || env.ValueFrom.SecretKeyRef.Key != "password" {
+		t.Errorf("unexpected SecretKeyRef: %+v", env.ValueFrom.SecretKeyRef)
+	}
+}
+
+func TestBuildPodSpec_NoEnvWhenNilRefs(t *testing.T) {
+	spec := buildPodSpec("cm", "", nil)
+	if len(spec.Containers[0].Env) != 0 {
+		t.Errorf("expected no env vars for nil secretRefs, got %d", len(spec.Containers[0].Env))
 	}
 }

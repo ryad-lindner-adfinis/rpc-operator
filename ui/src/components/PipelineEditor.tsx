@@ -1,5 +1,6 @@
 import { Suspense, lazy, useState } from 'react'
 import { ComponentBox } from './ComponentBox'
+import { SecretRefsEditor } from './SecretRefsEditor'
 import { specToYaml, yamlToSpec } from '../yaml-codec'
 import type { CatalogComponent, ComponentSpec, PipelineSpec } from '../types'
 
@@ -113,6 +114,11 @@ export function PipelineEditor({ spec, catalogCache, onChange }: Props) {
           )}
         </div>
       )}
+
+      <SecretRefsEditor
+        value={spec.secretRefs ?? []}
+        onChange={refs => onChange({ ...spec, secretRefs: refs })}
+      />
     </div>
   )
 }

@@ -8,6 +8,12 @@ export interface ComponentSpec {
   config?: unknown
 }
 
+export interface SecretRef {
+  envVar: string
+  secretName: string
+  key: string
+}
+
 export interface PipelineSpec {
   input?: ComponentSpec
   processors?: ComponentSpec[]
@@ -15,6 +21,7 @@ export interface PipelineSpec {
   rawYAML?: string
   replicas?: number
   image?: string
+  secretRefs?: SecretRef[]
 }
 
 export interface Pipeline {

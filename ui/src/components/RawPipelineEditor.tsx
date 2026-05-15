@@ -1,6 +1,7 @@
 import { Suspense, lazy, useState } from 'react'
 import { createPipeline, updatePipeline } from '../api'
-import type { Pipeline } from '../types'
+import { SecretRefsEditor } from './SecretRefsEditor'
+import type { Pipeline, SecretRef } from '../types'
 
 const MonacoEditor = lazy(() =>
   import('@monaco-editor/react').then(m => ({ default: m.default })),
@@ -16,6 +17,7 @@ interface Props {
 export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: Props) {
   const [name, setName] = useState(editPipeline?.metadata.name ?? '')
   const [text, setText] = useState(editPipeline?.spec.rawYAML ?? '')
+  const [secretRefs, setSecretRefs] = useState<SecretRef[]>(editPipeline?.spec.secretRefs ?? [])
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -27,7 +29,7 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
     setSaving(true)
     setError(null)
     try {
-      const spec = { rawYAML: text }
+      const spec = { rawYAML: text, ...(secretRefs.length > 0 ? { secretRefs } : {}) }
       if (editPipeline) {
         await updatePipeline(namespace, name, spec, editPipeline.metadata.resourceVersion)
       } else {
@@ -73,6 +75,8 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
           />
         </Suspense>
       </div>
+
+      <SecretRefsEditor value={secretRefs} onChange={setSecretRefs} />
 
       {error && (
         <div style={errorBannerStyle}>{error}</div>

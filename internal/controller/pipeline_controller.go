@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
@@ -94,7 +95,10 @@ func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return r.markFailed(ctx, &pipe, "RenderError", err.Error())
 	}
 
-	newHash := fmt.Sprintf("%x", sha256.Sum256([]byte(yamlStr+"\x00"+pipe.Spec.Image)))
+	secretRefsJSON, _ := json.Marshal(pipe.Spec.SecretRefs)
+	newHash := fmt.Sprintf("%x", sha256.Sum256(
+		[]byte(yamlStr+"\x00"+pipe.Spec.Image+"\x00"+string(secretRefsJSON)),
+	))
 
 	cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
 		Name:      pipe.Name + "-config",
@@ -127,7 +131,7 @@ func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}}
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, pod, func() error {
 		if pod.CreationTimestamp.IsZero() {
-			pod.Spec = buildPodSpec(cm.Name, pipe.Spec.Image)
+			pod.Spec = buildPodSpec(cm.Name, pipe.Spec.Image, secretRefsToEnvVars(pipe.Spec.SecretRefs))
 			pod.Labels = map[string]string{
 				"rpc.operator.io/pipeline": pipe.Name,
 			}
@@ -286,6 +290,27 @@ func (r *PipelineReconciler) markFailed(
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
+}
+
+// secretRefsToEnvVars converts PipelineSpec.SecretRefs into Kubernetes EnvVar
+// entries that the kubelet resolves from the referenced Secrets at container start.
+func secretRefsToEnvVars(refs []rpcv1alpha1.SecretRef) []corev1.EnvVar {
+	if len(refs) == 0 {
+		return nil
+	}
+	vars := make([]corev1.EnvVar, len(refs))
+	for i, r := range refs {
+		vars[i] = corev1.EnvVar{
+			Name: r.EnvVar,
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: r.SecretName},
+					Key:                  r.Key,
+				},
+			},
+		}
+	}
+	return vars
 }
 
 // SetupWithManager sets up the controller with the Manager.
