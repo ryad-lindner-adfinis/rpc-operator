@@ -29,6 +29,68 @@
         "minimum": 1,
         "default": 64,
         "description": "Maximum number of parallel put operations."
+      },
+      "auth": {
+        "type": "object",
+        "description": "NATS authentication. String fields support ${ENV_VAR} interpolation via spec.secretRefs.",
+        "properties": {
+          "nkey_file": {
+            "type": "string",
+            "description": "Path to an NKey seed file. Mutually exclusive with user_credentials_file and user_jwt/user_nkey_seed."
+          },
+          "user_credentials_file": {
+            "type": "string",
+            "description": "Path to a NATS credentials file (.creds) containing a signed user JWT and NKey seed. Mutually exclusive with the other auth methods."
+          },
+          "user_jwt": {
+            "type": "string",
+            "description": "User JWT for decentralized auth. Must be combined with user_nkey_seed. Supports ${ENV_VAR}."
+          },
+          "user_nkey_seed": {
+            "type": "string",
+            "description": "NKey seed used to sign the user_jwt challenge. Supports ${ENV_VAR}."
+          }
+        },
+        "additionalProperties": false
+      },
+      "tls": {
+        "type": "object",
+        "description": "TLS configuration for encrypted NATS connections.",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "Enable TLS. Automatically active when using nats+tls:// or tls:// URLs."
+          },
+          "skip_cert_verify": {
+            "type": "boolean",
+            "default": false,
+            "description": "Disable server certificate verification. Not recommended for production."
+          },
+          "root_cas": {
+            "type": "string",
+            "description": "PEM-encoded root CA certificate(s) for verifying the server certificate."
+          },
+          "root_cas_file": {
+            "type": "string",
+            "description": "Path to a PEM file containing root CA certificate(s)."
+          },
+          "client_certs": {
+            "type": "array",
+            "description": "Client certificates for mutual TLS (mTLS).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "cert": { "type": "string", "description": "PEM-encoded client certificate." },
+                "key": { "type": "string", "description": "PEM-encoded private key. Supports ${ENV_VAR}." },
+                "cert_file": { "type": "string", "description": "Path to the PEM-encoded certificate file." },
+                "key_file": { "type": "string", "description": "Path to the PEM-encoded private key file." }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
       }
     },
     "additionalProperties": false
