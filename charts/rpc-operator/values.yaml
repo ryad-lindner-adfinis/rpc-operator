@@ -67,7 +67,8 @@ resources:
     cpu: 50m
     memory: 64Mi
 
-nodeSelector: {}
+nodeSelector:
+  kubernetes.io/arch: amd64   # Operator image is amd64-only; remove once arm64 builds ship
 tolerations: []
 affinity: {}
 
