@@ -53,13 +53,3 @@ export function parseKubeconfigToken(text: string): { token: string } | { error:
   }
   return { error: 'no token in kubeconfig' }
 }
-
-export interface WhoamiResponse {
-  user: { name: string; uid?: string; groups?: string[] }
-  anonymous: boolean
-}
-
-export async function whoami(): Promise<WhoamiResponse> {
-  const { request } = await import('./api')
-  return request<WhoamiResponse>('GET', '/auth/whoami')
-}

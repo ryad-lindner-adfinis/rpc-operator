@@ -25,6 +25,15 @@ export async function request<T>(method: string, path: string, body?: unknown): 
   return resp.json()
 }
 
+export interface WhoamiResponse {
+  user: { name: string; uid?: string; groups?: string[] }
+  anonymous: boolean
+}
+
+export async function whoami(): Promise<WhoamiResponse> {
+  return request<WhoamiResponse>('GET', '/auth/whoami')
+}
+
 export async function listCatalog(): Promise<CatalogComponent[]> {
   const data = await request<{ items: CatalogComponent[] }>('GET', '/catalog')
   return data.items

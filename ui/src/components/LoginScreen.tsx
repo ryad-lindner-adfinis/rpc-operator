@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { parseKubeconfigToken, setToken, clearToken, whoami } from '../auth'
+import { whoami } from '../api'
+import { parseKubeconfigToken, setToken, clearToken } from '../auth'
 
 export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
   const [tokenText, setTokenText] = useState('')
