@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"os"
+	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -29,6 +30,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -65,6 +67,7 @@ func main() {
 	var probeAddr string
 	var apiAddr string
 	var prometheusURL string
+	var watchNamespacesRaw string
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var tlsOpts []func(*tls.Config)
@@ -87,6 +90,8 @@ func main() {
 		"Address the REST API listens on. Empty string disables the API server.")
 	flag.StringVar(&prometheusURL, "prometheus-url", "",
 		"Prometheus base URL for PromQL queries (e.g. http://prometheus:9090). Empty disables metrics.")
+	flag.StringVar(&watchNamespacesRaw, "watch-namespaces", "",
+		"Comma-separated namespace allowlist for operator cache and API. Empty = cluster-wide.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	opts := zap.Options{
@@ -96,6 +101,8 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	watchNamespaces := parseWatchNamespaces(watchNamespacesRaw)
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
@@ -164,7 +171,7 @@ func main() {
 		metricsServerOptions.KeyName = metricsCertKey
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	mgrOpts := ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsServerOptions,
 		WebhookServer:          webhookServer,
@@ -182,7 +189,18 @@ func main() {
 		// if you are doing or is intended to do any operation such as perform cleanups
 		// after the manager stops then its usage might be unsafe.
 		// LeaderElectionReleaseOnCancel: true,
-	})
+	}
+	if len(watchNamespaces) > 0 {
+		defaults := make(map[string]cache.Config, len(watchNamespaces))
+		for _, ns := range watchNamespaces {
+			defaults[ns] = cache.Config{}
+		}
+		mgrOpts.Cache = cache.Options{DefaultNamespaces: defaults}
+		setupLog.Info("Cache restricted to namespaces", "namespaces", watchNamespaces)
+	} else {
+		setupLog.Info("Cache is cluster-wide (no --watch-namespaces set)")
+	}
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), mgrOpts)
 	if err != nil {
 		setupLog.Error(err, "Failed to start manager")
 		os.Exit(1)
@@ -198,7 +216,7 @@ func main() {
 	// +kubebuilder:scaffold:builder
 
 	if apiAddr != "" {
-		apiSrv, err := api.New(apiAddr, mgr.GetClient(), mgr.GetConfig(), prometheusURL)
+		apiSrv, err := api.New(apiAddr, mgr.GetClient(), mgr.GetConfig(), prometheusURL, watchNamespaces)
 		if err != nil {
 			setupLog.Error(err, "Failed to create API server")
 			os.Exit(1)
@@ -223,4 +241,25 @@ func main() {
 		setupLog.Error(err, "Failed to run manager")
 		os.Exit(1)
 	}
+}
+
+// parseWatchNamespaces splits a comma-separated namespace list, trims whitespace,
+// and drops empty entries. Returns nil for an empty input so callers can use
+// len() == 0 as the cluster-wide signal.
+func parseWatchNamespaces(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

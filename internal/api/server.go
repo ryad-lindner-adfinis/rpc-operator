@@ -27,19 +27,20 @@ import (
 
 // Server is an HTTP REST server that integrates with the controller-runtime Manager.
 type Server struct {
-	Addr          string
-	Client        client.Client
-	Clientset     *kubernetes.Clientset // for pod log streaming; nil in tests
-	Catalog       *catalog.Catalog
-	PrometheusURL string // empty = Prometheus not configured
-	srv           *http.Server
+	Addr            string
+	Client          client.Client
+	Clientset       *kubernetes.Clientset // for pod log streaming; nil in tests
+	Catalog         *catalog.Catalog
+	PrometheusURL   string   // empty = Prometheus not configured
+	WatchNamespaces []string // F21: nil/empty = cluster-wide; otherwise only listed namespaces are accessible
+	srv             *http.Server
 }
 
 // Compile-time check that Server implements manager.Runnable.
 var _ manager.Runnable = (*Server)(nil)
 
 // New constructs a Server. Returns an error if the embedded catalog fails to load.
-func New(addr string, c client.Client, restCfg *rest.Config, prometheusURL string) (*Server, error) {
+func New(addr string, c client.Client, restCfg *rest.Config, prometheusURL string, watchNamespaces []string) (*Server, error) {
 	cat, err := catalog.Default()
 	if err != nil {
 		return nil, err
@@ -48,7 +49,14 @@ func New(addr string, c client.Client, restCfg *rest.Config, prometheusURL strin
 	if err != nil {
 		return nil, fmt.Errorf("build clientset: %w", err)
 	}
-	return &Server{Addr: addr, Client: c, Clientset: cs, Catalog: cat, PrometheusURL: prometheusURL}, nil
+	return &Server{
+		Addr:            addr,
+		Client:          c,
+		Clientset:       cs,
+		Catalog:         cat,
+		PrometheusURL:   prometheusURL,
+		WatchNamespaces: watchNamespaces,
+	}, nil
 }
 
 // Start implements manager.Runnable. Called by the manager once the cache is synced.
@@ -91,18 +99,21 @@ func (s *Server) RegisterRoutesForTest(mux *http.ServeMux) {
 }
 
 func (s *Server) registerRoutes(mux *http.ServeMux) {
+	// F21: allowlist endpoint; no path param, always available.
+	mux.HandleFunc("GET /api/v1/namespaces", s.handleListNamespaces)
+
 	mux.HandleFunc("GET /api/v1/pipelines", s.handleListAll)
-	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines", s.handleListNamespaced)
-	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/{name}", s.handleGet)
-	mux.HandleFunc("POST /api/v1/namespaces/{namespace}/pipelines", s.handleCreate)
-	mux.HandleFunc("PUT /api/v1/namespaces/{namespace}/pipelines/{name}", s.handleUpdate)
-	mux.HandleFunc("DELETE /api/v1/namespaces/{namespace}/pipelines/{name}", s.handleDelete)
+	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines", s.allowlist(s.handleListNamespaced))
+	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/{name}", s.allowlist(s.handleGet))
+	mux.HandleFunc("POST /api/v1/namespaces/{namespace}/pipelines", s.allowlist(s.handleCreate))
+	mux.HandleFunc("PUT /api/v1/namespaces/{namespace}/pipelines/{name}", s.allowlist(s.handleUpdate))
+	mux.HandleFunc("DELETE /api/v1/namespaces/{namespace}/pipelines/{name}", s.allowlist(s.handleDelete))
 	mux.HandleFunc("POST /api/v1/pipelines/validate", s.handleValidate)
 	mux.HandleFunc("POST /api/v1/pipelines/render", s.handleRender)
 	mux.HandleFunc("GET /api/v1/catalog", s.handleCatalogList)
 	mux.HandleFunc("GET /api/v1/catalog/{category}/{name}", s.handleCatalogGet)
-	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/{name}/logs", s.handleLogStream)
-	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/{name}/metrics", s.handleMetrics)
+	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/{name}/logs", s.allowlist(s.handleLogStream))
+	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/{name}/metrics", s.allowlist(s.handleMetrics))
 
 	// Serve the embedded SPA. Must come after all /api/v1/ routes (catch-all).
 	sub, err := fs.Sub(StaticFiles, "static")

@@ -21,6 +21,11 @@ export async function listCatalog(): Promise<CatalogComponent[]> {
   return data.items
 }
 
+export async function listNamespaces(): Promise<string[]> {
+  const data = await request<{ namespaces: string[] }>('GET', '/namespaces')
+  return data.namespaces ?? []
+}
+
 export async function getPipeline(namespace: string, name: string): Promise<Pipeline> {
   return request<Pipeline>('GET', `/namespaces/${namespace}/pipelines/${name}`)
 }

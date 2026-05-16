@@ -22,6 +22,17 @@ operator:
   # Example: http://prometheus-operated.cattle-monitoring-system.svc:9090
   prometheusUrl: ""
 
+  # F21: Namespace allowlist. Empty list (default) = operator watches all
+  # namespaces (cluster-wide). Set to a list of namespace names to restrict
+  # both the controller cache scope and the API. The operator's
+  # ServiceAccount still uses its existing ClusterRole; per-namespace Roles
+  # are a follow-up.
+  # Example:
+  #   watchNamespaces:
+  #     - data-eng
+  #     - analytics
+  watchNamespaces: []
+
 # Leader election adds resilience for >1 replica. v0.7 default off
 # (single-pod DEV setup; enabling requires extra Role for leases that this
 # chart does not yet ship).

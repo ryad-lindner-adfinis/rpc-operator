@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Toaster } from 'sonner'
-import { listCatalog, getPipeline } from './api'
+import { listCatalog, getPipeline, listNamespaces } from './api'
 import benthosLogo from './assets/benthos-logo.svg'
 import { PipelineEditor } from './components/PipelineEditor'
 import { PipelineList } from './components/PipelineList'
@@ -25,8 +25,20 @@ export default function App() {
   const [catalog, setCatalog] = useState<CatalogComponent[]>([])
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null)
   const [editPipeline, setEditPipeline] = useState<Pipeline | undefined>(undefined)
+  const [allowedNamespaces, setAllowedNamespaces] = useState<string[]>([])
 
   useEffect(() => { listCatalog().then(setCatalog).catch(console.error) }, [])
+  useEffect(() => {
+    listNamespaces()
+      .then(ns => {
+        setAllowedNamespaces(ns)
+        if (ns.length > 0 && !ns.includes(namespace)) {
+          setNamespace(ns[0])
+        }
+      })
+      .catch(console.error)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const catalogCache = useMemo(
     () => new Map(catalog.map(c => [c.category + '/' + c.name, c])),
     [catalog],
@@ -92,11 +104,23 @@ export default function App() {
         <div style={{ marginLeft: 'auto' }}>
           <label style={{ fontSize: 13, color: '#555' }}>
             Namespace&nbsp;
-            <input
-              value={namespace}
-              onChange={e => setNamespace(e.target.value)}
-              style={nsInputStyle}
-            />
+            {allowedNamespaces.length > 0 ? (
+              <select
+                value={namespace}
+                onChange={e => setNamespace(e.target.value)}
+                style={nsInputStyle}
+              >
+                {allowedNamespaces.map(ns => (
+                  <option key={ns} value={ns}>{ns}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={namespace}
+                onChange={e => setNamespace(e.target.value)}
+                style={nsInputStyle}
+              />
+            )}
           </label>
         </div>
       </div>

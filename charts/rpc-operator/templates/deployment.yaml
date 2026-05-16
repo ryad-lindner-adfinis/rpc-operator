@@ -50,6 +50,11 @@ spec:
             {{- with .Values.operator.prometheusUrl }}
             - --prometheus-url={{ . }}
             {{- end }}
+            {{- with .Values.operator.watchNamespaces }}
+            {{- if gt (len .) 0 }}
+            - --watch-namespaces={{ join "," . }}
+            {{- end }}
+            {{- end }}
           ports:
             - name: health
               containerPort: 8081
