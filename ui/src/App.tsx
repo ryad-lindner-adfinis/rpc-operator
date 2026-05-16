@@ -137,7 +137,7 @@ export default function App() {
               <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} />
             </label>
           </div>
-          <PipelineEditor spec={spec} catalogCache={catalogCache} onChange={setSpec} />
+          <PipelineEditor namespace={namespace} name={name} spec={spec} catalogCache={catalogCache} onChange={setSpec} />
           <DeployBar namespace={namespace} name={name} spec={spec} />
         </>
       )}

@@ -7,6 +7,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
+	"github.com/insidegreen/rpc-operator-claude/internal/render"
 )
 
 func (s *Server) handleListAll(w http.ResponseWriter, r *http.Request) {
@@ -108,6 +109,20 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"deleted": name})
+}
+
+func (s *Server) handleRender(w http.ResponseWriter, r *http.Request) {
+	var p rpcv1alpha1.Pipeline
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "invalid JSON", err.Error())
+		return
+	}
+	yamlText, err := render.RenderPipelineYAMLForDisplay(&p.Spec)
+	if err != nil {
+		writeJSONError(w, http.StatusUnprocessableEntity, "render failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"yaml": yamlText})
 }
 
 func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {

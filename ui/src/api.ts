@@ -38,6 +38,20 @@ export async function validatePipeline(
   })
 }
 
+export async function renderPipelineYAML(
+  namespace: string,
+  name: string,
+  spec: PipelineSpec,
+): Promise<string> {
+  const resp = await request<{ yaml: string }>('POST', '/pipelines/render', {
+    apiVersion: 'rpc.operator.io/v1alpha1',
+    kind: 'Pipeline',
+    metadata: { name, namespace },
+    spec,
+  })
+  return resp.yaml
+}
+
 export async function createPipeline(
   namespace: string,
   name: string,

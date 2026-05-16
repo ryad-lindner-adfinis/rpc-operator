@@ -61,6 +61,36 @@ func RenderPipelineYAML(spec *rpcv1alpha1.PipelineSpec) (string, error) {
 	return string(out), nil
 }
 
+// RenderPipelineYAMLForDisplay produces user-facing YAML identical to what the
+// pipeline pod runs, minus the operator-injected http server block on :4195
+// (liveness/readiness/metrics). Use this for UI display only — the controller
+// must keep using RenderPipelineYAML so the pod has its probes.
+func RenderPipelineYAMLForDisplay(spec *rpcv1alpha1.PipelineSpec) (string, error) {
+	out, err := RenderPipelineYAML(spec)
+	if err != nil {
+		return "", err
+	}
+	return stripHTTPBlock(out)
+}
+
+// stripHTTPBlock removes the top-level "http" key from a YAML document.
+func stripHTTPBlock(yamlText string) (string, error) {
+	var raw any
+	if err := yaml.Unmarshal([]byte(yamlText), &raw); err != nil {
+		return "", fmt.Errorf("invalid YAML: %w", err)
+	}
+	doc, ok := raw.(map[string]any)
+	if !ok || doc == nil {
+		return yamlText, nil
+	}
+	delete(doc, "http")
+	out, err := yaml.Marshal(doc)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
 // injectHTTPConfig parses rawYAML, adds the http server block if absent, and
 // re-serializes. This ensures liveness/readiness probes and Prometheus scraping work.
 func injectHTTPConfig(rawYAML string) (string, error) {

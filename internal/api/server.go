@@ -98,6 +98,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/v1/namespaces/{namespace}/pipelines/{name}", s.handleUpdate)
 	mux.HandleFunc("DELETE /api/v1/namespaces/{namespace}/pipelines/{name}", s.handleDelete)
 	mux.HandleFunc("POST /api/v1/pipelines/validate", s.handleValidate)
+	mux.HandleFunc("POST /api/v1/pipelines/render", s.handleRender)
 	mux.HandleFunc("GET /api/v1/catalog", s.handleCatalogList)
 	mux.HandleFunc("GET /api/v1/catalog/{category}/{name}", s.handleCatalogGet)
 	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/{name}/logs", s.handleLogStream)
