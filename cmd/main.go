@@ -69,6 +69,8 @@ func main() {
 	var prometheusURL string
 	var watchNamespacesRaw string
 	var authEnabled bool
+	var anonymousRead bool
+	var anonymousLogs bool
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var tlsOpts []func(*tls.Config)
@@ -95,6 +97,11 @@ func main() {
 		"Comma-separated namespace allowlist for operator cache and API. Empty = cluster-wide.")
 	flag.BoolVar(&authEnabled, "auth-enabled", true,
 		"Enable Bearer-Token authentication (F20a). false = v0.7-equivalent (operator-SA serves all requests).")
+	flag.BoolVar(&anonymousRead, "anonymous-read-enabled", false,
+		"F42: Allow unauthenticated GETs on pipelines/catalog/namespaces. Requires --auth-enabled=true.")
+	flag.BoolVar(&anonymousLogs, "anonymous-logs-enabled", false,
+		"F42: Allow unauthenticated log-stream WS connections. "+
+			"Requires --auth-enabled=true. Log content may contain payloads/secrets.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	opts := zap.Options{
@@ -109,6 +116,12 @@ func main() {
 
 	if !authEnabled {
 		setupLog.Info("AUTH DISABLED — operator-SA serves all requests")
+	}
+	if authEnabled && anonymousRead {
+		setupLog.Info("ANONYMOUS READS ENABLED — unauthenticated GETs allowed (F42)")
+	}
+	if authEnabled && anonymousLogs {
+		setupLog.Info("ANONYMOUS LOG STREAMING ENABLED — unauthenticated /logs allowed (F42)")
 	}
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
@@ -225,7 +238,8 @@ func main() {
 	if apiAddr != "" {
 		apiSrv, err := api.New(
 			apiAddr, mgr.GetClient(), mgr.GetConfig(), mgr.GetScheme(),
-			prometheusURL, watchNamespaces, authEnabled,
+			prometheusURL, watchNamespaces,
+			authEnabled, anonymousRead, anonymousLogs,
 		)
 		if err != nil {
 			setupLog.Error(err, "Failed to create API server")

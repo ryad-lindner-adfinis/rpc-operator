@@ -61,7 +61,12 @@ export default function App() {
     [catalog],
   )
 
+  // F42: defensive — in Mode C (anonymous read-only), refuse to enter any edit/new view.
+  // Buttons that trigger these are also hidden, but this guards against accidental calls.
+  const readOnly = me?.readOnly ?? false
+
   async function handleEdit(pipeline: Pipeline) {
+    if (readOnly) return
     try {
       const loaded = await getPipeline(pipeline.metadata.namespace, pipeline.metadata.name)
       setNamespace(loaded.metadata.namespace)
@@ -94,6 +99,7 @@ export default function App() {
   }
 
   function handleNew() {
+    if (readOnly) return
     setName('my-pipeline')
     setSpec(DEFAULT_SPEC)
     setEditPipeline(undefined)
@@ -101,6 +107,7 @@ export default function App() {
   }
 
   function handleNewRaw() {
+    if (readOnly) return
     setEditPipeline(undefined)
     setView('raw-editor')
   }
@@ -120,6 +127,11 @@ export default function App() {
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, fontFamily: 'system-ui, sans-serif' }}>
       <Toaster position="bottom-right" richColors />
+      {readOnly && (
+        <div style={readOnlyBannerStyle}>
+          Read-Only-Modus — anonymer Zugriff. Editieren und Deployen sind nicht möglich.
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
         <img
           src={benthosLogo}
@@ -151,11 +163,16 @@ export default function App() {
               />
             )}
           </label>
-          {me.anonymous ? (
+          {me.anonymous && me.readOnly ? (
+            // F42 Mode C — banner above content carries the messaging; header stays clean.
+            null
+          ) : me.anonymous ? (
+            // F43 Mode A — auth disabled entirely.
             <span title="Operator deployed without authentication" style={authHintStyle}>
               Auth disabled
             </span>
           ) : (
+            // F20a Mode B — authenticated user.
             <>
               <span style={{ fontSize: 12, color: '#666' }}>{me.user.name}</span>
               <button
@@ -172,17 +189,20 @@ export default function App() {
       {view === 'list' && (
         <PipelineList
           namespace={namespace}
-          onEdit={handleEdit}
+          readOnly={readOnly}
+          onEdit={readOnly ? undefined : handleEdit}
           onViewDetail={handleViewDetail}
-          onNew={handleNew}
-          onNewRaw={handleNewRaw}
+          onNew={readOnly ? undefined : handleNew}
+          onNewRaw={readOnly ? undefined : handleNewRaw}
         />
       )}
 
       {view === 'detail' && selectedPipeline && (
         <PipelineDetail
           pipeline={selectedPipeline}
-          onEdit={() => handleEdit(selectedPipeline)}
+          readOnly={readOnly}
+          showLogs={!me.anonymous || me.anonymousLogs}
+          onEdit={readOnly ? () => {} : () => handleEdit(selectedPipeline)}
           onBack={() => setView('list')}
         />
       )}
@@ -229,4 +249,8 @@ const authHintStyle: React.CSSProperties = {
 const logoutBtnStyle: React.CSSProperties = {
   padding: '4px 10px', fontSize: 12, background: '#fff', border: '1px solid #ccc',
   borderRadius: 4, cursor: 'pointer', color: '#444',
+}
+const readOnlyBannerStyle: React.CSSProperties = {
+  background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: 4,
+  padding: '8px 12px', marginBottom: 16, fontSize: 13, color: '#92400e',
 }

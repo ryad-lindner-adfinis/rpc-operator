@@ -20,14 +20,20 @@ func (s *Server) handleLogStream(w http.ResponseWriter, r *http.Request) {
 	// In Mode B the token arrives in `?token=…` because browsers cannot set
 	// headers on `new WebSocket(...)`. Verify and inject into context BEFORE
 	// the WS upgrade, because after Accept we can no longer write HTTP errors.
+	//
+	// F42: AnonymousLogs is a SEPARATE flag from AnonymousRead — log content
+	// can carry payloads/secrets. Anonymous logs require explicit opt-in.
 	if s.AuthEnabled {
-		token := tokenFromRequest(r)
-		if token == "" {
+		if token := tokenFromRequest(r); token != "" {
+			ctx := context.WithValue(r.Context(), tokenContextKey, token)
+			r = r.WithContext(ctx)
+		} else if s.AnonymousLogs {
+			ctx := context.WithValue(r.Context(), anonymousContextKey, true)
+			r = r.WithContext(ctx)
+		} else {
 			writeJSONError(w, http.StatusUnauthorized, "unauthorized", "missing token query parameter")
 			return
 		}
-		ctx := context.WithValue(r.Context(), tokenContextKey, token)
-		r = r.WithContext(ctx)
 	}
 
 	// 1. Pipeline holen — HTTP-Fehler sind hier noch möglich (vor WS-Upgrade)

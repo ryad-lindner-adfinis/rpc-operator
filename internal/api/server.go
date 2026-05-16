@@ -35,6 +35,8 @@ type Server struct {
 	PrometheusURL   string          // empty = Prometheus not configured
 	WatchNamespaces []string        // F21: nil/empty = cluster-wide; otherwise only listed namespaces are accessible
 	AuthEnabled     bool            // F43: false = Mode A (Operator-SA serves everything); true = Mode B (token-forwarding)
+	AnonymousRead   bool            // F42: when true (and AuthEnabled), GETs on pipelines/catalog/namespaces pass without a token
+	AnonymousLogs   bool            // F42: when true (and AuthEnabled), WS /logs passes without a token; separate from AnonymousRead because log content can leak payloads
 	Scheme          *runtime.Scheme // F20a: scheme for per-request controller-runtime clients
 	RestConfig      *rest.Config    // F20a: base config (host + CA) for per-request clients; never mutated directly
 	srv             *http.Server
@@ -44,7 +46,11 @@ type Server struct {
 var _ manager.Runnable = (*Server)(nil)
 
 // New constructs a Server. Returns an error if the embedded catalog fails to load.
-func New(addr string, c client.Client, restCfg *rest.Config, scheme *runtime.Scheme, prometheusURL string, watchNamespaces []string, authEnabled bool) (*Server, error) {
+func New(
+	addr string, c client.Client, restCfg *rest.Config, scheme *runtime.Scheme,
+	prometheusURL string, watchNamespaces []string,
+	authEnabled, anonymousRead, anonymousLogs bool,
+) (*Server, error) {
 	cat, err := catalog.Default()
 	if err != nil {
 		return nil, err
@@ -61,6 +67,8 @@ func New(addr string, c client.Client, restCfg *rest.Config, scheme *runtime.Sch
 		PrometheusURL:   prometheusURL,
 		WatchNamespaces: watchNamespaces,
 		AuthEnabled:     authEnabled,
+		AnonymousRead:   anonymousRead,
+		AnonymousLogs:   anonymousLogs,
 		Scheme:          scheme,
 		RestConfig:      restCfg,
 	}, nil
@@ -106,18 +114,20 @@ func (s *Server) RegisterRoutesForTest(mux *http.ServeMux) {
 }
 
 func (s *Server) registerRoutes(mux *http.ServeMux) {
-	// F20a: whoami — always available; auth-aware internally.
-	mux.HandleFunc("GET /api/v1/auth/whoami", s.authIfEnabled(s.handleWhoami))
+	// F20a + F42: whoami is anonymous-eligible so the UI can detect Mode C
+	// (read-only) state without a token.
+	mux.HandleFunc("GET /api/v1/auth/whoami", s.authOrAnonymous(s.handleWhoami))
 
-	// F21: allowlist endpoint; requires auth in Mode B (anonymous reads come with F42).
-	mux.HandleFunc("GET /api/v1/namespaces", s.authIfEnabled(s.handleListNamespaces))
+	// F21 + F42: allowlist endpoint; anonymous-eligible in Mode C.
+	mux.HandleFunc("GET /api/v1/namespaces", s.authOrAnonymous(s.handleListNamespaces))
 
+	// Pipelines — Reads anonymous-eligible (F42), Writes stay token-required.
 	mux.HandleFunc("GET /api/v1/pipelines",
-		s.authIfEnabled(s.handleListAll))
+		s.authOrAnonymous(s.handleListAll))
 	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines",
-		s.authIfEnabled(s.allowlist(s.handleListNamespaced)))
+		s.authOrAnonymous(s.allowlist(s.handleListNamespaced)))
 	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/{name}",
-		s.authIfEnabled(s.allowlist(s.handleGet)))
+		s.authOrAnonymous(s.allowlist(s.handleGet)))
 	mux.HandleFunc("POST /api/v1/namespaces/{namespace}/pipelines",
 		s.authIfEnabled(s.allowlist(s.handleCreate)))
 	mux.HandleFunc("PUT /api/v1/namespaces/{namespace}/pipelines/{name}",
@@ -129,19 +139,21 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/pipelines/validate", s.handleValidate)
 	mux.HandleFunc("POST /api/v1/pipelines/render", s.handleRender)
 
-	// Catalog — auth required in Mode B (no K8s touch, but PRD says all routes except /healthz, /readyz).
-	mux.HandleFunc("GET /api/v1/catalog", s.authIfEnabled(s.handleCatalogList))
-	mux.HandleFunc("GET /api/v1/catalog/{category}/{name}", s.authIfEnabled(s.handleCatalogGet))
+	// Catalog — anonymous-eligible (F42).
+	mux.HandleFunc("GET /api/v1/catalog", s.authOrAnonymous(s.handleCatalogList))
+	mux.HandleFunc("GET /api/v1/catalog/{category}/{name}", s.authOrAnonymous(s.handleCatalogGet))
 
 	// Logs WS: token check is inline in handleLogStream (browsers cannot set
 	// headers on `new WebSocket(...)`, so authMiddleware in front would always
-	// 401 the WS upgrade). Allowlist still wraps it — path-param check is
-	// orthogonal to the WS mechanism.
+	// 401 the WS upgrade). Logs have a SEPARATE F42 flag (s.AnonymousLogs)
+	// because log content can contain payloads/secrets. Allowlist still
+	// wraps it — path-param check is orthogonal to the WS mechanism.
 	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/{name}/logs",
 		s.allowlist(s.handleLogStream))
 
+	// Metrics — anonymous-eligible (F42).
 	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/{name}/metrics",
-		s.authIfEnabled(s.allowlist(s.handleMetrics)))
+		s.authOrAnonymous(s.allowlist(s.handleMetrics)))
 
 	// Serve the embedded SPA. Must come after all /api/v1/ routes (catch-all).
 	sub, err := fs.Sub(StaticFiles, "static")

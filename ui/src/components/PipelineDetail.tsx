@@ -5,11 +5,15 @@ import { MetricsGraph } from './MetricsGraph'
 
 interface Props {
   pipeline: Pipeline
+  /** F42 Mode C: hides the Edit button. */
+  readOnly?: boolean
+  /** F42: when false, skip the log WebSocket entirely and hide the Live-Logs section. */
+  showLogs?: boolean
   onEdit: () => void
   onBack: () => void
 }
 
-export function PipelineDetail({ pipeline, onEdit, onBack }: Props) {
+export function PipelineDetail({ pipeline, readOnly = false, showLogs = true, onEdit, onBack }: Props) {
   const [logs, setLogs] = useState<string[]>([])
   const [wsState, setWsState] = useState<'connecting' | 'open' | 'closed'>('connecting')
   const [paused, setPaused] = useState(false)
@@ -17,6 +21,7 @@ export function PipelineDetail({ pipeline, onEdit, onBack }: Props) {
   const logEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    if (!showLogs) return
     const { namespace, name } = pipeline.metadata
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const token = getToken()
@@ -32,7 +37,7 @@ export function PipelineDetail({ pipeline, onEdit, onBack }: Props) {
     ws.onerror = () => setWsState('closed')
 
     return () => ws.close()
-  }, [pipeline.metadata.namespace, pipeline.metadata.name])
+  }, [pipeline.metadata.namespace, pipeline.metadata.name, showLogs])
 
   useEffect(() => {
     if (!paused) logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -53,7 +58,9 @@ export function PipelineDetail({ pipeline, onEdit, onBack }: Props) {
         <span style={{ color: '#888', fontSize: 13 }}>{p.metadata.namespace}</span>
         <PhaseBadge phase={p.status?.phase} />
         <div style={{ marginLeft: 'auto' }}>
-          <button onClick={onEdit} style={editBtnStyle}>Bearbeiten</button>
+          {!readOnly && (
+            <button onClick={onEdit} style={editBtnStyle}>Bearbeiten</button>
+          )}
         </div>
       </div>
 
@@ -104,7 +111,8 @@ export function PipelineDetail({ pipeline, onEdit, onBack }: Props) {
         isRunning={p.status?.phase === 'Running'}
       />
 
-      {/* Live Logs */}
+      {/* Live Logs — hidden in Mode C when anonymous.logs.enabled is false */}
+      {showLogs && (
       <div style={sectionStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <h3 style={{ ...sectionTitleStyle, margin: 0 }}>Live-Logs</h3>
@@ -138,6 +146,7 @@ export function PipelineDetail({ pipeline, onEdit, onBack }: Props) {
           <div ref={logEndRef} />
         </pre>
       </div>
+      )}
     </div>
   )
 }

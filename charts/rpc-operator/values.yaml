@@ -40,6 +40,21 @@ operator:
 auth:
   enabled: true
 
+# F42: Anonymous Read-Only-Modus. Setzt `auth.enabled: true` voraus
+# (Helm-Render schlaegt sonst mit `fail` ab — Modi A und C sind exklusiv).
+#
+# `read.enabled: true` schaltet GET-Pfade auf Pipelines/Catalog/Namespaces/Metrics
+# fuer unauthentifizierte Requests frei. Writes (POST/PUT/DELETE) bleiben tokenpflichtig.
+# Backend laeuft fuer anonyme Reads unter der Operator-SA innerhalb der F21-Allowlist.
+#
+# `logs.enabled: true` schaltet zusaetzlich den Live-Log-Stream (`/logs` WebSocket) frei.
+# Separat, weil Log-Inhalte Payloads/Secrets enthalten koennen.
+anonymous:
+  read:
+    enabled: false
+  logs:
+    enabled: false
+
 # Leader election adds resilience for >1 replica. v0.7 default off
 # (single-pod DEV setup; enabling requires extra Role for leases that this
 # chart does not yet ship).

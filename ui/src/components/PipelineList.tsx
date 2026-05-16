@@ -7,10 +7,12 @@ import type { Pipeline } from '../types'
 
 interface Props {
   namespace: string
-  onEdit: (pipeline: Pipeline) => void
+  /** F42 Mode C: hides Neue Pipeline / Bearbeiten / Loeschen actions. */
+  readOnly?: boolean
+  onEdit?: (pipeline: Pipeline) => void
   onViewDetail: (pipeline: Pipeline) => void
-  onNew: () => void
-  onNewRaw: () => void
+  onNew?: () => void
+  onNewRaw?: () => void
 }
 
 type SortKey = 'name' | 'phase' | 'pod' | 'updated'
@@ -34,7 +36,7 @@ function sortPipelines(items: Pipeline[], key: SortKey, dir: SortDir): Pipeline[
   })
 }
 
-export function PipelineList({ namespace, onEdit, onViewDetail, onNew, onNewRaw }: Props) {
+export function PipelineList({ namespace, readOnly = false, onEdit, onViewDetail, onNew, onNewRaw }: Props) {
   const [pipelines, setPipelines] = useState<Pipeline[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>()
@@ -103,24 +105,26 @@ export function PipelineList({ namespace, onEdit, onViewDetail, onNew, onNewRaw 
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 style={{ margin: 0, fontSize: 18 }}>Pipelines — {namespace}</h2>
-        <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-flex' }}>
-          <button onClick={onNew} style={newBtnStyle}>+ Neue Pipeline</button>
-          <button
-            onClick={() => setDropdownOpen(o => !o)}
-            style={{ ...newBtnStyle, padding: '6px 8px', borderLeft: '1px solid rgba(255,255,255,0.4)', borderRadius: '0 4px 4px 0' }}
-            aria-label="Weitere Optionen"
-          ><ChevronDown size={14} /></button>
-          {dropdownOpen && (
-            <div style={dropdownMenuStyle}>
-              <button
-                onClick={() => { setDropdownOpen(false); onNewRaw() }}
-                style={dropdownItemStyle}
-              >
-                Neue RAW Pipeline
-              </button>
-            </div>
-          )}
-        </div>
+        {!readOnly && onNew && (
+          <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-flex' }}>
+            <button onClick={onNew} style={newBtnStyle}>+ Neue Pipeline</button>
+            <button
+              onClick={() => setDropdownOpen(o => !o)}
+              style={{ ...newBtnStyle, padding: '6px 8px', borderLeft: '1px solid rgba(255,255,255,0.4)', borderRadius: '0 4px 4px 0' }}
+              aria-label="Weitere Optionen"
+            ><ChevronDown size={14} /></button>
+            {dropdownOpen && onNewRaw && (
+              <div style={dropdownMenuStyle}>
+                <button
+                  onClick={() => { setDropdownOpen(false); onNewRaw() }}
+                  style={dropdownItemStyle}
+                >
+                  Neue RAW Pipeline
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {pipelines.length === 0 ? (
         <p style={{ color: '#888' }}>Keine Pipelines in diesem Namespace.</p>
@@ -158,22 +162,26 @@ export function PipelineList({ namespace, onEdit, onViewDetail, onNew, onNewRaw 
                     {lastUpdated(p)}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    <button
-                      onClick={e => { e.stopPropagation(); onEdit(p) }}
-                      title="Bearbeiten"
-                      disabled={isDeleting}
-                      style={{ ...iconBtnStyle, color: isDeleting ? '#ccc' : '#3b82f6' }}
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={e => requestDelete(p, e)}
-                      title="Löschen"
-                      disabled={isDeleting}
-                      style={{ ...iconBtnStyle, marginLeft: 4, color: isDeleting ? '#ccc' : '#ef4444' }}
-                    >
-                      <X size={14} />
-                    </button>
+                    {!readOnly && onEdit && (
+                      <button
+                        onClick={e => { e.stopPropagation(); onEdit(p) }}
+                        title="Bearbeiten"
+                        disabled={isDeleting}
+                        style={{ ...iconBtnStyle, color: isDeleting ? '#ccc' : '#3b82f6' }}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    )}
+                    {!readOnly && (
+                      <button
+                        onClick={e => requestDelete(p, e)}
+                        title="Löschen"
+                        disabled={isDeleting}
+                        style={{ ...iconBtnStyle, marginLeft: 4, color: isDeleting ? '#ccc' : '#ef4444' }}
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               )

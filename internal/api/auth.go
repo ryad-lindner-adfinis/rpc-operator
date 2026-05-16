@@ -22,6 +22,12 @@ type contextKey string
 // the per-request-client helpers.
 const tokenContextKey contextKey = "rpc-bearer-token"
 
+// anonymousContextKey marks a request as having passed authOrAnonymous in
+// anonymous-read mode (F42, Mode C). Handlers use this to decide whether
+// clientForRequest returns the Operator-SA client or a per-request one.
+// MUST be a distinct key from tokenContextKey — never both set on one request.
+const anonymousContextKey contextKey = "rpc-anonymous-request"
+
 // AnonymousUser is the username returned by /api/v1/auth/whoami when auth
 // is disabled (Mode A). Mirrors the K8s convention for unauthenticated users.
 const AnonymousUser = "system:anonymous"
@@ -68,12 +74,45 @@ func (s *Server) authIfEnabled(next http.HandlerFunc) http.HandlerFunc {
 	return s.authMiddleware(next)
 }
 
+// authOrAnonymous wraps a handler so that:
+//   - Mode A (s.AuthEnabled=false): handler passes through unchanged.
+//   - Mode B with token: stores token in context, like authMiddleware.
+//   - Mode C (Mode B + s.AnonymousRead) without token: marks the request
+//     as anonymous in context and proceeds (handler runs under Operator-SA).
+//   - Mode B without token + !s.AnonymousRead: 401.
+//
+// Used for GET routes that PRD F42 lists as anonymous-eligible: pipelines
+// (list/get/metrics), catalog, namespaces, whoami. Writes use authIfEnabled.
+func (s *Server) authOrAnonymous(next http.HandlerFunc) http.HandlerFunc {
+	if !s.AuthEnabled {
+		return next
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		if token := tokenFromRequest(r); token != "" {
+			ctx := context.WithValue(r.Context(), tokenContextKey, token)
+			next(w, r.WithContext(ctx))
+			return
+		}
+		if s.AnonymousRead {
+			ctx := context.WithValue(r.Context(), anonymousContextKey, true)
+			next(w, r.WithContext(ctx))
+			return
+		}
+		writeJSONError(w, http.StatusUnauthorized, "unauthorized", "missing or empty Bearer token")
+	}
+}
+
 // clientForRequest returns a controller-runtime client appropriate for the
-// caller. Mode A (auth off): the operator-SA cached client. Mode B (auth on):
-// a fresh, uncached client built from the user's Bearer token. The Mode B
-// client never reads from the manager cache — Cache contents are op-SA-scoped.
+// caller. Mode A (auth off): the operator-SA cached client. Mode C (F42
+// anonymous-read): also the Operator-SA client, signalled by an explicit
+// context marker set by authOrAnonymous. Mode B authenticated: a fresh,
+// uncached client built from the user's Bearer token. The Mode B client
+// never reads from the manager cache — cache contents are op-SA-scoped.
 func (s *Server) clientForRequest(r *http.Request) (client.Client, error) {
 	if !s.AuthEnabled {
+		return s.Client, nil
+	}
+	if anon, _ := r.Context().Value(anonymousContextKey).(bool); anon {
 		return s.Client, nil
 	}
 	token, _ := r.Context().Value(tokenContextKey).(string)
@@ -92,10 +131,13 @@ func (s *Server) clientForRequest(r *http.Request) (client.Client, error) {
 }
 
 // clientsetForRequest returns a client-go Clientset for the caller. Same
-// Mode A / Mode B semantics as clientForRequest. Used by handlers that need
+// Mode A / B / C semantics as clientForRequest. Used by handlers that need
 // CoreV1 (pod logs, SelfSubjectReview).
 func (s *Server) clientsetForRequest(r *http.Request) (*kubernetes.Clientset, error) {
 	if !s.AuthEnabled {
+		return s.Clientset, nil
+	}
+	if anon, _ := r.Context().Value(anonymousContextKey).(bool); anon {
 		return s.Clientset, nil
 	}
 	token, _ := r.Context().Value(tokenContextKey).(string)
@@ -114,12 +156,24 @@ func (s *Server) clientsetForRequest(r *http.Request) (*kubernetes.Clientset, er
 }
 
 // handleWhoami returns the current user identity. Mode A: anonymous.
-// Mode B: result of K8s SelfSubjectReview using the user's token.
+// Mode C (F42 anonymous-read, no token): anonymous + readOnly=true.
+// Mode B authenticated: result of K8s SelfSubjectReview using the user's token.
 func (s *Server) handleWhoami(w http.ResponseWriter, r *http.Request) {
 	if !s.AuthEnabled {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"user":      map[string]any{"name": AnonymousUser},
-			"anonymous": true,
+			"user":          map[string]any{"name": AnonymousUser},
+			"anonymous":     true,
+			"readOnly":      false,
+			"anonymousLogs": true, // Mode A — everything is allowed
+		})
+		return
+	}
+	if anon, _ := r.Context().Value(anonymousContextKey).(bool); anon {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"user":          map[string]any{"name": AnonymousUser},
+			"anonymous":     true,
+			"readOnly":      true,
+			"anonymousLogs": s.AnonymousLogs,
 		})
 		return
 	}
@@ -141,6 +195,8 @@ func (s *Server) handleWhoami(w http.ResponseWriter, r *http.Request) {
 			"uid":    info.UID,
 			"groups": info.Groups,
 		},
-		"anonymous": false,
+		"anonymous":     false,
+		"readOnly":      false,
+		"anonymousLogs": s.AnonymousLogs,
 	})
 }

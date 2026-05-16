@@ -1,3 +1,6 @@
+{{- if and (not .Values.auth.enabled) (or .Values.anonymous.read.enabled .Values.anonymous.logs.enabled) -}}
+{{- fail "F42 (anonymous.*.enabled) requires auth.enabled=true. Modes A (auth off) and C (auth on + anonymous reads) are mutually exclusive." -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -56,6 +59,8 @@ spec:
             {{- end }}
             {{- end }}
             - --auth-enabled={{ .Values.auth.enabled }}
+            - --anonymous-read-enabled={{ .Values.anonymous.read.enabled }}
+            - --anonymous-logs-enabled={{ .Values.anonymous.logs.enabled }}
           ports:
             - name: health
               containerPort: 8081

@@ -28,6 +28,10 @@ export async function request<T>(method: string, path: string, body?: unknown): 
 export interface WhoamiResponse {
   user: { name: string; uid?: string; groups?: string[] }
   anonymous: boolean
+  /** F42: true in Mode C (anonymous read-only). UI hides write actions. */
+  readOnly: boolean
+  /** F42: server's anonymous.logs.enabled. Only relevant when anonymous=true. */
+  anonymousLogs: boolean
 }
 
 export async function whoami(): Promise<WhoamiResponse> {

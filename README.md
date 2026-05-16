@@ -148,13 +148,30 @@ gesteuert über Helm-Werte:
 |---|---|---|
 | **A. Auth aus** (v0.7-Kompatibilität) | `--set auth.enabled=false` | Kein Login; alle Requests laufen unter Operator-SA. **Niemals** mit Public-Ingress kombinieren. |
 | **B. Token-Auth** (Default v0.8) | `auth.enabled=true` (Default) | Login mit K8s-Bearer-Token (paste oder Kubeconfig-Upload — nur Token wird extrahiert, Cert-Auth wird abgelehnt). Backend forwarded den Token per-Request an den Apiserver; native K8s-RBAC entscheidet. |
-| **C. + anonyme GETs** (F42, geplant) | `auth.enabled=true` + `anonymous.read.enabled=true` | Wie B; zusätzlich GET-Pfade ohne Auth. Noch nicht implementiert. |
+| **C. + anonyme GETs** (F42) | `auth.enabled=true` + `anonymous.read.enabled=true` (+ optional `anonymous.logs.enabled=true`) | Wie B; zusätzlich GETs auf Pipelines/Catalog/Namespaces/Metrics ohne Token (laufen unter Operator-SA innerhalb der F21-Allowlist). Logs nur, wenn der separate `anonymous.logs.enabled`-Schalter gesetzt ist — Log-Inhalte können Payloads/Secrets enthalten. UI zeigt einen Read-Only-Banner und blendet Edit/Deploy/Delete-Buttons aus. |
 
 Token besorgen für Mode B:
 
 ```bash
 kubectl --context <ctx> create token <serviceaccount> -n <namespace>
 ```
+
+Mode C aktivieren (Statusboard-/Public-Display-Use-Case):
+
+```bash
+# Reads anonym, Logs vertraulich:
+helm install rpc-operator ./charts/rpc-operator \
+  --set auth.enabled=true \
+  --set anonymous.read.enabled=true
+
+# Plus anonyme Live-Logs:
+helm install rpc-operator ./charts/rpc-operator \
+  --set auth.enabled=true \
+  --set anonymous.read.enabled=true \
+  --set anonymous.logs.enabled=true
+```
+
+> **Sicherheits-Warnung (F42):** Anonyme Reads zeigen Pipeline-Specs inkl. `spec.secretRefs`-Namen (nicht -Werten) und `spec.rawYAML`. Pipelines mit sensiblen Bloblang-Mappings können dabei Metadaten exponieren. F42 ist für Demo-/Statusboard-Cluster gedacht, nicht für Produktionspipelines mit Compliance-Anforderungen. Die Kombination `auth.enabled=false` + `anonymous.*.enabled=true` ist ein Konfigurationsfehler — Helm-Render schlägt mit `fail` ab.
 
 > **Log-Stream-Hinweis:** Browser können bei `new WebSocket()` keine Header
 > setzen, daher wandert das Token zum `/logs`-Endpoint in der URL
