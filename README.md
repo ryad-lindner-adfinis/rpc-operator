@@ -1,60 +1,60 @@
 # RPC Operator
 
-Kubernetes Operator für [Redpanda Connect](https://docs.redpanda.com/redpanda-connect/) Pipelines.
-Data Engineers konfigurieren Pipelines visuell oder als YAML über eine eingebettete Web-UI
-und deployen sie per Klick in einen Kubernetes-Cluster.
+Kubernetes operator for [Redpanda Connect](https://docs.redpanda.com/redpanda-connect/) pipelines.
+Data engineers configure pipelines visually or as YAML through an embedded web UI
+and deploy them to a Kubernetes cluster with a single click.
 
 ## Local Development
 
-### Voraussetzungen
+### Prerequisites
 
 | Tool | Version |
 |---|---|
 | Go | ≥ 1.24 |
-| Node.js | ≥ 20 (für UI-Build) |
+| Node.js | ≥ 20 (for UI build) |
 | kubectl | ≥ 1.11 |
-| Kubernetes-Cluster | ≥ 1.11 (kubeconfig konfiguriert) |
+| Kubernetes cluster | ≥ 1.11 (kubeconfig configured) |
 
-### Schnellstart
+### Quickstart
 
 ```bash
-# 1. CRDs im Cluster installieren (einmalig)
+# 1. Install the CRDs into the cluster (once)
 make install
 
-# 2. UI bauen
+# 2. Build the UI
 make ui-build
 
-# 3. Operator starten — nutzt den aktuellen kubeconfig-Context
+# 3. Start the operator — uses the current kubeconfig context
 go run ./cmd/main.go
 ```
 
-Der Operator verbindet sich mit dem aktiven kubeconfig-Context.
-Die Web-UI ist danach unter **http://localhost:8082** erreichbar.
+The operator connects to the active kubeconfig context.
+The web UI is then available at **http://localhost:8082**.
 
 ```bash
-# Context prüfen / wechseln
+# Inspect / switch context
 kubectl config current-context
 kubectl config use-context <context-name>
 ```
 
-### CLI-Flags des Operators
+### Operator CLI Flags
 
-Der Operator wird mit `go run ./cmd/main.go [flags]` gestartet. Alle Flags
-haben sinnvolle Defaults — die folgenden sind im Dev-Setup am häufigsten relevant.
+The operator is started with `go run ./cmd/main.go [flags]`. All flags have
+sensible defaults — the ones below are the most commonly relevant in a dev setup.
 
-| Flag | Default | Zweck |
+| Flag | Default | Purpose |
 |---|---|---|
-| `--api-bind-address` | `:8082` | Adresse für REST-API + eingebettete UI. Leer (`""`) deaktiviert den API-Server (nur Operator-Loop). |
-| `--health-probe-bind-address` | `:8081` | Liveness/Readiness-Probes (`/healthz`, `/readyz`). |
-| `--auth-enabled` | `true` | F43-Master-Switch. `--auth-enabled=false` reproduziert v0.7-Verhalten (kein Login, alle Requests via Operator-SA). Für Hot-Reload-Dev typischerweise `false` setzen. |
-| `--prometheus-url` | _leer_ | Prometheus-Basis-URL für den Throughput-Graph (F15). Leer deaktiviert nur den Graph, alles andere läuft. Bsp.: `--prometheus-url=http://prometheus-operated.cattle-monitoring-system.svc:9090` |
-| `--watch-namespaces` | _leer_ | F21-Allowlist als Komma-Liste. Leer = cluster-wide (sieht alle Pipelines). Bsp.: `--watch-namespaces=rpc-operator-poc,default` |
-| `--leader-elect` | `false` | Für Multi-Replica-Setups. Im Single-Pod-Dev aus lassen. |
-| `--metrics-bind-address` | `0` | Operator-Self-Metrics (controller-runtime). `0` = aus (Default; PodMonitor-pro-Pipeline aus F36 ist davon unberührt). `:8443` aktiviert HTTPS mit authn/authz. |
-| `--zap-log-level` | `debug` | Log-Level (`info`, `debug`, `error`); `opts.Development=true` im Code setzt den Default auf `debug`. |
-| `--zap-encoder` | `console` | `console` (menschenlesbar) oder `json` (für strukturierte Logs). |
+| `--api-bind-address` | `:8082` | Address for the REST API + embedded UI. Empty (`""`) disables the API server (operator loop only). |
+| `--health-probe-bind-address` | `:8081` | Liveness/readiness probes (`/healthz`, `/readyz`). |
+| `--auth-enabled` | `true` | F43 master switch. `--auth-enabled=false` reproduces v0.7 behavior (no login, all requests via operator SA). Typically set to `false` for hot-reload dev. |
+| `--prometheus-url` | _empty_ | Prometheus base URL for the throughput graph (F15). Empty disables only the graph; everything else still works. Example: `--prometheus-url=http://prometheus-operated.cattle-monitoring-system.svc:9090` |
+| `--watch-namespaces` | _empty_ | F21 allowlist as a comma-separated list. Empty = cluster-wide (sees all pipelines). Example: `--watch-namespaces=rpc-operator-poc,default` |
+| `--leader-elect` | `false` | For multi-replica setups. Leave off in single-pod dev. |
+| `--metrics-bind-address` | `0` | Operator self-metrics (controller-runtime). `0` = off (default; the per-pipeline PodMonitor from F36 is unaffected). `:8443` enables HTTPS with authn/authz. |
+| `--zap-log-level` | `debug` | Log level (`info`, `debug`, `error`); `opts.Development=true` in code sets the default to `debug`. |
+| `--zap-encoder` | `console` | `console` (human-readable) or `json` (for structured logs). |
 
-Dev-typischer Start mit allen relevanten Flags:
+Typical dev startup with all relevant flags:
 
 ```bash
 go run ./cmd/main.go \
@@ -63,65 +63,65 @@ go run ./cmd/main.go \
   --prometheus-url=http://prometheus-operated.cattle-monitoring-system.svc:9090
 ```
 
-> **Produktions-Flags:** `--metrics-secure`, `--metrics-cert-*`, `--webhook-cert-*`, `--enable-http2` sind für Helm-Deployments im Cluster gedacht und im Dev-Setup normalerweise nicht nötig. Vollständige Liste: `go run ./cmd/main.go --help`.
+> **Production flags:** `--metrics-secure`, `--metrics-cert-*`, `--webhook-cert-*`, `--enable-http2` are intended for in-cluster Helm deployments and are normally not needed in dev. Full list: `go run ./cmd/main.go --help`.
 
-### UI-Entwicklung mit Hot-Reload
+### UI Development with Hot Reload
 
-Für Frontend-Änderungen reicht ein separater Vite-Dev-Server — kein Neustart
-des Operators nötig. Vite proxied `/api`-Requests automatisch an `:8082`.
+For frontend changes a separate Vite dev server is enough — no operator restart
+required. Vite automatically proxies `/api` requests to `:8082`.
 
 ```bash
-# Terminal 1 — Operator
+# Terminal 1 — operator
 go run ./cmd/main.go
 
-# Terminal 2 — Vite Dev Server (Hot-Reload)
+# Terminal 2 — Vite dev server (hot reload)
 make ui-dev
 # → http://localhost:5173
 ```
 
-### Tests ausführen
+### Running Tests
 
 ```bash
-# Alle Go-Tests
+# All Go tests
 make test
 
-# Nur ein Paket
+# A single package
 go test ./internal/render/...
 
 # Linter
 make lint
 
-# TypeScript Type-Check
+# TypeScript type check
 cd ui && npx tsc --noEmit
 ```
 
-### Pipeline manuell testen
+### Test a Pipeline Manually
 
 ```bash
-# Deployte Pipelines anzeigen
+# Show deployed pipelines
 kubectl get pipeline.rpc.operator.io -n rpc-operator-poc
 
-# Pods der Pipelines
+# Pipeline pods
 kubectl get pods -n rpc-operator-poc
 
-# Logs einer Pipeline
+# Pipeline logs
 kubectl logs -n rpc-operator-poc <pod-name>
 
-# Pipeline löschen
+# Delete a pipeline
 kubectl delete pipeline.rpc.operator.io <name> -n rpc-operator-poc
 ```
 
-### Nützliche Make-Targets
+### Useful Make Targets
 
 ```bash
-make help          # Alle Targets mit Beschreibung
-make ui-build      # React-UI bauen (→ internal/api/static/)
-make ui-dev        # Vite Dev Server starten
-make build         # Go-Binary inkl. UI bauen (→ bin/manager)
-make test          # Go-Tests ausführen
+make help          # All targets with descriptions
+make ui-build      # Build the React UI (→ internal/api/static/)
+make ui-dev        # Start the Vite dev server
+make build         # Build the Go binary including the UI (→ bin/manager)
+make test          # Run Go tests
 make lint          # golangci-lint
-make install       # CRDs im Cluster installieren
-make uninstall     # CRDs aus Cluster entfernen
+make install       # Install CRDs into the cluster
+make uninstall     # Remove CRDs from the cluster
 ```
 
 ---
@@ -136,67 +136,101 @@ helm install rpc-operator ./charts/rpc-operator \
   --set examples.enabled=true
 ```
 
-Pull-Secret für die private Registry, Konfigurationsoptionen und 5-Minuten-
-Quickstart: [`charts/rpc-operator/README.md`](charts/rpc-operator/README.md).
+Pull secret for the private registry, configuration options, and a five-minute
+quickstart: [`charts/rpc-operator/README.md`](charts/rpc-operator/README.md).
 
-### Auth-Modi
+### Auth Modes
 
-Ab v0.8 ist die UI per Default mit Bearer-Token-Auth geschützt. Drei Modi
-gesteuert über Helm-Werte:
+Starting with v0.8 the UI is protected by Bearer token auth by default. Three
+modes, controlled via Helm values:
 
-| Modus | Helm | Verhalten |
+| Mode | Helm | Behavior |
 |---|---|---|
-| **A. Auth aus** (v0.7-Kompatibilität) | `--set auth.enabled=false` | Kein Login; alle Requests laufen unter Operator-SA. **Niemals** mit Public-Ingress kombinieren. |
-| **B. Token-Auth** (Default v0.8) | `auth.enabled=true` (Default) | Login mit K8s-Bearer-Token (paste oder Kubeconfig-Upload — nur Token wird extrahiert, Cert-Auth wird abgelehnt). Backend forwarded den Token per-Request an den Apiserver; native K8s-RBAC entscheidet. |
-| **C. + anonyme GETs** (F42) | `auth.enabled=true` + `anonymous.read.enabled=true` (+ optional `anonymous.logs.enabled=true`) | Wie B; zusätzlich GETs auf Pipelines/Catalog/Namespaces/Metrics ohne Token (laufen unter Operator-SA innerhalb der F21-Allowlist). Logs nur, wenn der separate `anonymous.logs.enabled`-Schalter gesetzt ist — Log-Inhalte können Payloads/Secrets enthalten. UI zeigt einen Read-Only-Banner und blendet Edit/Deploy/Delete-Buttons aus. |
+| **A. Auth off** (v0.7 compatibility) | `--set auth.enabled=false` | No login; all requests run under the operator SA. **Never** combine with a public ingress. |
+| **B. Token auth** (default v0.8) | `auth.enabled=true` (default) | Login with a K8s bearer token (paste or kubeconfig upload — only the token is extracted; cert-auth is rejected). The backend forwards the token per request to the apiserver; native K8s RBAC decides. |
+| **C. + anonymous GETs** (F42) | `auth.enabled=true` + `anonymous.read.enabled=true` (+ optional `anonymous.logs.enabled=true`) | Like B; additionally allows GETs on pipelines/catalog/namespaces/metrics without a token (running under the operator SA within the F21 allowlist). Logs are only exposed if the separate `anonymous.logs.enabled` switch is set — log content can contain payloads/secrets. The UI shows a read-only banner and hides edit/deploy/delete buttons. |
 
-Token besorgen für Mode B:
+Obtain a token for Mode B:
 
 ```bash
-kubectl --context <ctx> create token <serviceaccount> -n <namespace>
+# 1) Create a per-user ServiceAccount and bind RBAC for pipelines
+kubectl -n <namespace> create serviceaccount <user>
+
+kubectl apply -f - <<'EOF'
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rpc-pipeline-editor
+  namespace: <namespace>
+rules:
+- apiGroups: ["rpc.operator.io"]
+  resources: ["pipelines", "pipelines/status"]
+  verbs: ["get","list","watch","create","update","patch","delete"]
+- apiGroups: [""]
+  resources: ["pods","pods/log","events","configmaps"]
+  verbs: ["get","list","watch"]
+EOF
+
+kubectl -n <namespace> create rolebinding <user>-pipelines \
+  --role=rpc-pipeline-editor --serviceaccount=<namespace>:<user>
+
+# The F21 namespace-allowlist dropdown needs cluster-wide `list namespaces`:
+kubectl create clusterrolebinding <user>-ns-list \
+  --clusterrole=view --serviceaccount=<namespace>:<user>
+
+# 2) Mint a token and paste it into the login screen
+kubectl -n <namespace> create token <user> --duration=24h
 ```
 
-Mode C aktivieren (Statusboard-/Public-Display-Use-Case):
+> **Rancher clusters:** Tokens from a Rancher-issued kubeconfig
+> (`kubeconfig-u-…:…`) are Rancher auth-proxy credentials and are not
+> accepted by the apiserver directly (`token rejected by apiserver:
+> Unauthorized`). Login only works with apiserver-native tokens — create a
+> ServiceAccount per user as shown above. An SSO solution via a shared
+> OIDC IdP will arrive with F20b (v0.9).
+
+Enable Mode C (status-board / public-display use case):
 
 ```bash
-# Reads anonym, Logs vertraulich:
+# Anonymous reads, logs kept private:
 helm install rpc-operator ./charts/rpc-operator \
   --set auth.enabled=true \
   --set anonymous.read.enabled=true
 
-# Plus anonyme Live-Logs:
+# Plus anonymous live logs:
 helm install rpc-operator ./charts/rpc-operator \
   --set auth.enabled=true \
   --set anonymous.read.enabled=true \
   --set anonymous.logs.enabled=true
 ```
 
-> **Sicherheits-Warnung (F42):** Anonyme Reads zeigen Pipeline-Specs inkl. `spec.secretRefs`-Namen (nicht -Werten) und `spec.rawYAML`. Pipelines mit sensiblen Bloblang-Mappings können dabei Metadaten exponieren. F42 ist für Demo-/Statusboard-Cluster gedacht, nicht für Produktionspipelines mit Compliance-Anforderungen. Die Kombination `auth.enabled=false` + `anonymous.*.enabled=true` ist ein Konfigurationsfehler — Helm-Render schlägt mit `fail` ab.
+> **Security warning (F42):** Anonymous reads expose pipeline specs including `spec.secretRefs` names (not values) and `spec.rawYAML`. Pipelines with sensitive Bloblang mappings may leak metadata in the process. F42 is intended for demo / status-board clusters, not for production pipelines with compliance requirements. The combination `auth.enabled=false` + `anonymous.*.enabled=true` is a configuration error — `helm` render fails with `fail`.
 
-> **Log-Stream-Hinweis:** Browser können bei `new WebSocket()` keine Header
-> setzen, daher wandert das Token zum `/logs`-Endpoint in der URL
-> (`?token=…`). Bei Reverse-Proxies und Ingress-Controllern darauf achten,
-> dass Access-Logs den Query-String nicht persistent loggen.
+> **Log-stream note:** Browsers cannot set headers on `new WebSocket()`, so
+> the token is passed to the `/logs` endpoint as a URL parameter
+> (`?token=…`). Make sure reverse proxies and ingress controllers do not
+> persist the query string in their access logs.
 
 ---
 
 ## Container Image
 
-Das Operator-Image (Manager + UI in einem Binary) wird bei jedem Release-Tag und bei jedem
-Main-Push automatisch über Forgejo Actions gebaut und in die Forgejo-Registry gepusht.
+The operator image (manager + UI in a single binary) is built and pushed to the
+Forgejo registry automatically by Forgejo Actions on every release tag and
+every push to `main`.
 
 **Image:** `forgejo.thecloudroute.com/tom/rpc-operator`
 
 **Tags:**
 
-| Tag             | Bedeutung                                     |
+| Tag             | Meaning                                       |
 |-----------------|-----------------------------------------------|
-| `vX.Y.Z`        | Release-Build von einem Git-Tag               |
-| `latest`        | Aktuellster Release-Tag                       |
-| `main`          | Letzter Commit auf `main`-Branch              |
-| `main-<sha7>`   | Spezifischer Main-Commit (für Bisect / Pin)   |
+| `vX.Y.Z`        | Release build from a Git tag                  |
+| `latest`        | Most recent release tag                       |
+| `main`          | Latest commit on the `main` branch            |
+| `main-<sha7>`   | Specific main commit (for bisect / pinning)   |
 
-**Architekturen:** `linux/amd64` (arm64 folgt, sobald ein arm64-Forgejo-Runner verfügbar ist).
+**Architectures:** `linux/amd64` (arm64 will follow once an arm64 Forgejo runner is available).
 
 **Pull:**
 
@@ -204,16 +238,17 @@ Main-Push automatisch über Forgejo Actions gebaut und in die Forgejo-Registry g
 docker pull forgejo.thecloudroute.com/tom/rpc-operator:latest
 ```
 
-**Lokal bauen** (Maintainer, mit Docker-Daemon):
+**Build locally** (maintainers, with a Docker daemon):
 
 ```bash
 make docker-build IMG=forgejo.thecloudroute.com/tom/rpc-operator:dev
 ```
 
-> **CI-Build:** Forgejo Actions baut das Image mit
-> [Kaniko](https://github.com/GoogleContainerTools/kaniko) ohne Docker-Daemon
-> (`.forgejo/workflows/image.yml`). Multi-Arch ist nicht aktiviert, weil Kaniko
-> einen Single-Arch-Builder ist und derzeit nur ein amd64-Runner verfügbar ist.
+> **CI build:** Forgejo Actions builds the image with
+> [Kaniko](https://github.com/GoogleContainerTools/kaniko) without a Docker
+> daemon (`.forgejo/workflows/image.yml`). Multi-arch is not enabled because
+> Kaniko is a single-arch builder and currently only an amd64 runner is
+> available.
 
 ---
 
@@ -345,4 +380,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
