@@ -90,6 +90,14 @@ type PipelineSpec struct {
 	// into the pipeline Pod. Reference them in RPC YAML as ${ENV_VAR}.
 	// +optional
 	SecretRefs []SecretRef `json:"secretRefs,omitempty"`
+
+	// Stopped, when true, signals the operator to delete the pipeline pod
+	// and keep it absent. The Pipeline CR (and its ConfigMap/PodMonitor)
+	// remain in place. Toggle back to false to resume the pipeline.
+	// F45: stop/run a pipeline without deleting the CR.
+	// +kubebuilder:default=false
+	// +optional
+	Stopped bool `json:"stopped,omitempty"`
 }
 
 // PipelinePhase reports the high-level lifecycle stage of a Pipeline's pod.

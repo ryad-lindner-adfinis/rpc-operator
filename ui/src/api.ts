@@ -115,6 +115,15 @@ export async function deletePipeline(namespace: string, name: string): Promise<v
   await request<void>('DELETE', `/namespaces/${namespace}/pipelines/${name}`)
 }
 
+// F45: stop and run subresources. Idempotent on both sides.
+export async function stopPipeline(namespace: string, name: string): Promise<Pipeline> {
+  return request<Pipeline>('POST', `/namespaces/${namespace}/pipelines/${name}/stop`)
+}
+
+export async function runPipeline(namespace: string, name: string): Promise<Pipeline> {
+  return request<Pipeline>('POST', `/namespaces/${namespace}/pipelines/${name}/run`)
+}
+
 export async function getMetrics(
   namespace: string,
   name: string,

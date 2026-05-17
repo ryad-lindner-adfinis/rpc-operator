@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
@@ -139,6 +140,44 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"deleted": name})
+}
+
+// handleStop sets spec.stopped=true on the named Pipeline. The reconciler
+// then deletes the pod and marks status.phase=Stopped.
+// F45: idempotent — stopping an already-stopped pipeline is a no-op patch.
+func (s *Server) handleStop(w http.ResponseWriter, r *http.Request) {
+	s.patchStopped(w, r, true)
+}
+
+// handleRun sets spec.stopped=false. The reconciler then recreates the pod.
+// F45: idempotent — running an already-running pipeline is a no-op patch.
+func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
+	s.patchStopped(w, r, false)
+}
+
+func (s *Server) patchStopped(w http.ResponseWriter, r *http.Request, stopped bool) {
+	ns := r.PathValue("namespace")
+	name := r.PathValue("name")
+	c, err := s.clientForRequest(r)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal error", err.Error())
+		return
+	}
+	var p rpcv1alpha1.Pipeline
+	if err := c.Get(r.Context(), client.ObjectKey{Namespace: ns, Name: name}, &p); err != nil {
+		writeK8sError(w, err)
+		return
+	}
+	patch := []byte(`{"spec":{"stopped":true}}`)
+	if !stopped {
+		patch = []byte(`{"spec":{"stopped":false}}`)
+	}
+	if err := c.Patch(r.Context(), &p, client.RawPatch(types.MergePatchType, patch)); err != nil {
+		writeK8sError(w, err)
+		return
+	}
+	p.ManagedFields = nil
+	writeJSON(w, http.StatusOK, &p)
 }
 
 func (s *Server) handleRender(w http.ResponseWriter, r *http.Request) {

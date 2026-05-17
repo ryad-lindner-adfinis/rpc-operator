@@ -204,4 +204,84 @@ var _ = Describe("Pipeline Controller", func() {
 		Expect(newPod.Annotations[specHashAnnotation]).NotTo(BeEmpty())
 		Expect(newPod.Annotations[specHashAnnotation]).NotTo(Equal(originalHash))
 	})
+
+	It("deletes the pod and marks Stopped when spec.stopped flips to true", func() {
+		// Reconcile 1+2: finalizer + create pod.
+		_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		By("pod exists after initial reconcile")
+		Expect(k8sClient.Get(ctx, nn, &corev1.Pod{})).To(Succeed())
+
+		By("flipping spec.stopped=true")
+		pipe := &rpcv1alpha1.Pipeline{}
+		Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
+		pipe.Spec.Stopped = true
+		Expect(k8sClient.Update(ctx, pipe)).To(Succeed())
+
+		By("reconcile takes the stopped path and deletes the pod")
+		_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		Eventually(func() bool {
+			return apierrors.IsNotFound(k8sClient.Get(ctx, nn, &corev1.Pod{}))
+		}).Should(BeTrue())
+
+		By("status reflects Stopped phase with reason StoppedByUser")
+		Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
+		Expect(pipe.Status.Phase).To(Equal(rpcv1alpha1.PhaseStopped))
+		Expect(pipe.Status.PodName).To(BeEmpty())
+		readyCond := findCondition(pipe.Status.Conditions, "Ready")
+		Expect(readyCond).NotTo(BeNil())
+		Expect(readyCond.Reason).To(Equal("StoppedByUser"))
+		Expect(string(readyCond.Status)).To(Equal("False"))
+	})
+
+	It("recreates the pod when spec.stopped flips back to false", func() {
+		// Reconcile 1+2: finalizer + create pod.
+		_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		By("stopping the pipeline")
+		pipe := &rpcv1alpha1.Pipeline{}
+		Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
+		pipe.Spec.Stopped = true
+		Expect(k8sClient.Update(ctx, pipe)).To(Succeed())
+		_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		Eventually(func() bool {
+			return apierrors.IsNotFound(k8sClient.Get(ctx, nn, &corev1.Pod{}))
+		}).Should(BeTrue())
+
+		By("flipping spec.stopped back to false")
+		Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
+		pipe.Spec.Stopped = false
+		Expect(k8sClient.Update(ctx, pipe)).To(Succeed())
+
+		By("reconcile recreates the pod")
+		_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		Eventually(func() error {
+			return k8sClient.Get(ctx, nn, &corev1.Pod{})
+		}).Should(Succeed())
+
+		By("status phase leaves Stopped")
+		Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
+		Expect(pipe.Status.Phase).NotTo(Equal(rpcv1alpha1.PhaseStopped))
+	})
 })
+
+// findCondition returns the named condition or nil if absent.
+func findCondition(conds []metav1.Condition, name string) *metav1.Condition {
+	for i := range conds {
+		if conds[i].Type == name {
+			return &conds[i]
+		}
+	}
+	return nil
+}

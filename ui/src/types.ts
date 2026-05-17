@@ -22,6 +22,8 @@ export interface PipelineSpec {
   replicas?: number
   image?: string
   secretRefs?: SecretRef[]
+  /** F45: when true, the operator removes the pipeline pod and keeps it stopped. */
+  stopped?: boolean
 }
 
 export interface Pipeline {

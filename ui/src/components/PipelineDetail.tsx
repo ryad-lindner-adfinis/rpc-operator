@@ -5,15 +5,22 @@ import { MetricsGraph } from './MetricsGraph'
 
 interface Props {
   pipeline: Pipeline
-  /** F42 Mode C: hides the Edit button. */
+  /** F42 Mode C: hides the Edit, Stop, and Run buttons. */
   readOnly?: boolean
   /** F42: when false, skip the log WebSocket entirely and hide the Live-Logs section. */
   showLogs?: boolean
   onEdit: () => void
   onBack: () => void
+  /** F45: stop a Running/Pending pipeline. Hidden when not provided. */
+  onStop?: () => void
+  /** F45: re-run a Stopped pipeline. Hidden when not provided. */
+  onRun?: () => void
 }
 
-export function PipelineDetail({ pipeline, readOnly = false, showLogs = true, onEdit, onBack }: Props) {
+export function PipelineDetail({
+  pipeline, readOnly = false, showLogs = true,
+  onEdit, onBack, onStop, onRun,
+}: Props) {
   const [logs, setLogs] = useState<string[]>([])
   const [wsState, setWsState] = useState<'connecting' | 'open' | 'closed'>('connecting')
   const [paused, setPaused] = useState(false)
@@ -57,7 +64,13 @@ export function PipelineDetail({ pipeline, readOnly = false, showLogs = true, on
         <h2 style={{ margin: 0, fontSize: 18 }}>{p.metadata.name}</h2>
         <span style={{ color: '#888', fontSize: 13 }}>{p.metadata.namespace}</span>
         <PhaseBadge phase={p.status?.phase} />
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          {!readOnly && onStop && (p.status?.phase === 'Running' || p.status?.phase === 'Pending') && (
+            <button onClick={onStop} style={stopBtnStyle}>Stop</button>
+          )}
+          {!readOnly && onRun && p.status?.phase === 'Stopped' && (
+            <button onClick={onRun} style={runBtnStyle}>Run</button>
+          )}
           {!readOnly && (
             <button onClick={onEdit} style={editBtnStyle}>Edit</button>
           )}
@@ -191,6 +204,14 @@ const backBtnStyle: React.CSSProperties = {
 const editBtnStyle: React.CSSProperties = {
   padding: '5px 14px', border: '1px solid #ccc', borderRadius: 4,
   background: 'none', cursor: 'pointer', fontSize: 13,
+}
+const stopBtnStyle: React.CSSProperties = {
+  padding: '5px 14px', border: '1px solid #fca5a5', borderRadius: 4,
+  background: '#fff', cursor: 'pointer', fontSize: 13, color: '#b91c1c',
+}
+const runBtnStyle: React.CSSProperties = {
+  padding: '5px 14px', border: '1px solid #86efac', borderRadius: 4,
+  background: '#fff', cursor: 'pointer', fontSize: 13, color: '#15803d',
 }
 const logPanelStyle: React.CSSProperties = {
   background: '#1e1e1e', color: '#d4d4d4', padding: 12, borderRadius: 4,

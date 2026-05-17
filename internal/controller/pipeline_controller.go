@@ -89,6 +89,13 @@ func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	// F45: stopped pipelines have no pod and stay at phase=Stopped until
+	// spec.stopped flips back to false. Short-circuit before render to avoid
+	// recreating the pod on every loop.
+	if pipe.Spec.Stopped {
+		return r.handleStopped(ctx, &pipe)
+	}
+
 	yamlStr, err := render.RenderPipelineYAML(&pipe.Spec)
 	if err != nil {
 		log.Error(err, "render failed")
@@ -288,6 +295,51 @@ func (r *PipelineReconciler) markFailed(
 	})
 	if err := r.Status().Update(ctx, pipe); err != nil {
 		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
+}
+
+// handleStopped enforces the spec.stopped=true contract:
+// the pipeline pod is deleted if present and the status is set to Stopped.
+// ConfigMap and PodMonitor are intentionally left in place so that flipping
+// spec.stopped back to false resumes cleanly.
+func (r *PipelineReconciler) handleStopped(
+	ctx context.Context,
+	pipe *rpcv1alpha1.Pipeline,
+) (ctrl.Result, error) {
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name:      pipe.Name,
+		Namespace: pipe.Namespace,
+	}}
+	if err := r.Delete(ctx, pod); client.IgnoreNotFound(err) != nil {
+		return ctrl.Result{}, fmt.Errorf("delete pod on stop: %w", err)
+	}
+
+	desiredCond := metav1.Condition{
+		Type:    "Ready",
+		Status:  metav1.ConditionFalse,
+		Reason:  "StoppedByUser",
+		Message: "Pipeline stopped by user (spec.stopped=true)",
+	}
+	existingCond := apimeta.FindStatusCondition(pipe.Status.Conditions, "Ready")
+	condChanged := existingCond == nil ||
+		existingCond.Status != desiredCond.Status ||
+		existingCond.Reason != desiredCond.Reason
+
+	if condChanged ||
+		pipe.Status.Phase != rpcv1alpha1.PhaseStopped ||
+		pipe.Status.PodName != "" ||
+		pipe.Status.ObservedGeneration != pipe.Generation {
+		pipe.Status.Phase = rpcv1alpha1.PhaseStopped
+		pipe.Status.PodName = ""
+		pipe.Status.ObservedGeneration = pipe.Generation
+		apimeta.SetStatusCondition(&pipe.Status.Conditions, desiredCond)
+		if err := r.Status().Update(ctx, pipe); err != nil {
+			if apierrors.IsConflict(err) {
+				return ctrl.Result{Requeue: true}, nil
+			}
+			return ctrl.Result{}, err
+		}
 	}
 	return ctrl.Result{}, nil
 }

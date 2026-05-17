@@ -157,6 +157,14 @@ spec:
                   - secretName
                   type: object
                 type: array
+              stopped:
+                default: false
+                description: |-
+                  Stopped, when true, signals the operator to delete the pipeline pod
+                  and keep it absent. The Pipeline CR (and its ConfigMap/PodMonitor)
+                  remain in place. Toggle back to false to resume the pipeline.
+                  F45: stop/run a pipeline without deleting the CR.
+                type: boolean
             type: object
           status:
             description: PipelineStatus defines the observed state of Pipeline.

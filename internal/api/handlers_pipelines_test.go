@@ -544,3 +544,115 @@ func TestHandlerPipelines_Create_RawYAML_InvalidYAML(t *testing.T) {
 		t.Errorf("expected 422 for invalid rawYAML, got %d", resp.StatusCode)
 	}
 }
+
+// F45: stop/run subresources.
+
+func TestHandlerPipelines_Stop_SetsStopped(t *testing.T) {
+	existing := &rpcv1alpha1.Pipeline{
+		ObjectMeta: metav1.ObjectMeta{Name: "stoppable", Namespace: "default"},
+		Spec: rpcv1alpha1.PipelineSpec{
+			Input:  rpcv1alpha1.ComponentSpec{Type: "generate"},
+			Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
+		},
+	}
+	ts := newTestServer(t, existing)
+	defer ts.Close()
+
+	resp, err := http.Post(
+		ts.URL+"/api/v1/namespaces/default/pipelines/stoppable/stop",
+		"application/json", nil,
+	)
+	if err != nil {
+		t.Fatalf("POST /stop: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	var got rpcv1alpha1.Pipeline
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !got.Spec.Stopped {
+		t.Errorf("expected spec.stopped=true after /stop, got false")
+	}
+}
+
+func TestHandlerPipelines_Run_ClearsStopped(t *testing.T) {
+	existing := &rpcv1alpha1.Pipeline{
+		ObjectMeta: metav1.ObjectMeta{Name: "runnable", Namespace: "default"},
+		Spec: rpcv1alpha1.PipelineSpec{
+			Input:   rpcv1alpha1.ComponentSpec{Type: "generate"},
+			Output:  rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			Stopped: true,
+		},
+	}
+	ts := newTestServer(t, existing)
+	defer ts.Close()
+
+	resp, err := http.Post(
+		ts.URL+"/api/v1/namespaces/default/pipelines/runnable/run",
+		"application/json", nil,
+	)
+	if err != nil {
+		t.Fatalf("POST /run: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	var got rpcv1alpha1.Pipeline
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Spec.Stopped {
+		t.Errorf("expected spec.stopped=false after /run, got true")
+	}
+}
+
+func TestHandlerPipelines_Stop_NotFound(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.Close()
+	resp, err := http.Post(
+		ts.URL+"/api/v1/namespaces/default/pipelines/nope/stop",
+		"application/json", nil,
+	)
+	if err != nil {
+		t.Fatalf("POST /stop: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandlerPipelines_Stop_Idempotent(t *testing.T) {
+	existing := &rpcv1alpha1.Pipeline{
+		ObjectMeta: metav1.ObjectMeta{Name: "already-stopped", Namespace: "default"},
+		Spec: rpcv1alpha1.PipelineSpec{
+			Input:   rpcv1alpha1.ComponentSpec{Type: "generate"},
+			Output:  rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			Stopped: true,
+		},
+	}
+	ts := newTestServer(t, existing)
+	defer ts.Close()
+	resp, err := http.Post(
+		ts.URL+"/api/v1/namespaces/default/pipelines/already-stopped/stop",
+		"application/json", nil,
+	)
+	if err != nil {
+		t.Fatalf("POST /stop: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 (idempotent), got %d", resp.StatusCode)
+	}
+	var got rpcv1alpha1.Pipeline
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !got.Spec.Stopped {
+		t.Errorf("expected spec.stopped=true to remain true, got false")
+	}
+}

@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Toaster } from 'sonner'
-import { listCatalog, getPipeline, listNamespaces, whoami, type WhoamiResponse } from './api'
+import { Toaster, toast } from 'sonner'
+import {
+  listCatalog, getPipeline, listNamespaces, whoami,
+  stopPipeline, runPipeline, type WhoamiResponse,
+} from './api'
 import { clearToken } from './auth'
 import benthosLogo from './assets/benthos-logo.svg'
 import { PipelineEditor } from './components/PipelineEditor'
@@ -96,6 +99,32 @@ export default function App() {
   function handleViewDetail(pipeline: Pipeline) {
     setSelectedPipeline(pipeline)
     setView('detail')
+  }
+
+  async function handleStop() {
+    if (!selectedPipeline) return
+    const { namespace, name } = selectedPipeline.metadata
+    try {
+      await stopPipeline(namespace, name)
+      const updated = await getPipeline(namespace, name)
+      setSelectedPipeline(updated)
+      toast.success(`Stopped ${name}`)
+    } catch (e) {
+      toast.error('Stop failed: ' + (e as Error).message)
+    }
+  }
+
+  async function handleRun() {
+    if (!selectedPipeline) return
+    const { namespace, name } = selectedPipeline.metadata
+    try {
+      await runPipeline(namespace, name)
+      const updated = await getPipeline(namespace, name)
+      setSelectedPipeline(updated)
+      toast.success(`Started ${name}`)
+    } catch (e) {
+      toast.error('Run failed: ' + (e as Error).message)
+    }
   }
 
   function handleNew() {
@@ -204,6 +233,8 @@ export default function App() {
           showLogs={!me.anonymous || me.anonymousLogs}
           onEdit={readOnly ? () => {} : () => handleEdit(selectedPipeline)}
           onBack={() => setView('list')}
+          onStop={readOnly ? undefined : handleStop}
+          onRun={readOnly ? undefined : handleRun}
         />
       )}
 

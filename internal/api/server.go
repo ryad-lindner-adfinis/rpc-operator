@@ -135,6 +135,12 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/v1/namespaces/{namespace}/pipelines/{name}",
 		s.authIfEnabled(s.allowlist(s.handleDelete)))
 
+	// F45: stop/run subresources — write actions, require auth in Modes B/C-with-token.
+	mux.HandleFunc("POST /api/v1/namespaces/{namespace}/pipelines/{name}/stop",
+		s.authIfEnabled(s.allowlist(s.handleStop)))
+	mux.HandleFunc("POST /api/v1/namespaces/{namespace}/pipelines/{name}/run",
+		s.authIfEnabled(s.allowlist(s.handleRun)))
+
 	// Spec-only — no K8s touch, no auth, no allowlist. F42 anonymous-read keeps these open.
 	mux.HandleFunc("POST /api/v1/pipelines/validate", s.handleValidate)
 	mux.HandleFunc("POST /api/v1/pipelines/render", s.handleRender)
