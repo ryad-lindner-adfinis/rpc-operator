@@ -30,6 +30,9 @@ jobs:
     runs-on: docker
     container:
       image: catthehacker/ubuntu:act-latest
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout (full history)
