@@ -190,7 +190,7 @@ kubectl -n <namespace> create token <user> --duration=24h
 > accepted by the apiserver directly (`token rejected by apiserver:
 > Unauthorized`). Login only works with apiserver-native tokens — create a
 > ServiceAccount per user as shown above. An SSO solution via a shared
-> OIDC IdP will arrive with F20b (v0.9).
+> OIDC IdP will arrive with F20b (v1.0).
 
 Enable Mode C (status-board / public-display use case):
 
