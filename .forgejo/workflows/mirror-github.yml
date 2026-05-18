@@ -18,6 +18,7 @@ env:
     docs/
     HANDOFF.md
     .claude/
+    skills/
   GITHUB_REPO: insidegreen/rpc-operator
 
 jobs:
