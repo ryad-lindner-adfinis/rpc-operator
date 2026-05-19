@@ -40,3 +40,6 @@ internal/api/static/*
 # Node modules
 ui/node_modules/
 ui/tsconfig.tsbuildinfo
+
+# Local dev helpers (per-developer SA-token setup, scratch scripts)
+role.sh

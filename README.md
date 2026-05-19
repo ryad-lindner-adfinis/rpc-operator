@@ -189,8 +189,56 @@ kubectl -n <namespace> create token <user> --duration=24h
 > (`kubeconfig-u-…:…`) are Rancher auth-proxy credentials and are not
 > accepted by the apiserver directly (`token rejected by apiserver:
 > Unauthorized`). Login only works with apiserver-native tokens — create a
-> ServiceAccount per user as shown above. An SSO solution via a shared
-> OIDC IdP will arrive with F20b (v1.0).
+> ServiceAccount per user as shown above, or use **OIDC SSO (F20b, below)**
+> against an IdP the apiserver itself accepts.
+
+#### Login with SSO (F20b — OIDC PKCE)
+
+For multi-user clusters with a central identity provider (Keycloak, Dex,
+EntraID, Okta, …), F20b enables an OIDC PKCE login button in the UI. The
+backend caches the refresh token in-memory (single-replica only — see
+[ADR-0003](docs/adrs/0003-oidc-session-store.md)); the `id_token` is
+forwarded to the apiserver just like an F20a Bearer token.
+
+**Prerequisite:** The Kubernetes apiserver must be configured with matching
+OIDC flags:
+
+```
+--oidc-issuer-url=https://keycloak.example.com/realms/platform
+--oidc-client-id=rpc-operator
+```
+
+Register a **public OAuth 2.0 client** at the IdP with:
+
+- Redirect URI: `https://rpc-operator.example.com/api/v1/auth/callback`
+- Allowed scopes: `openid profile email offline_access`
+- PKCE: required (S256). No client secret.
+
+Then install / upgrade the chart:
+
+```bash
+helm upgrade --install rpc-operator ./charts/rpc-operator \
+  --set auth.enabled=true \
+  --set oidc.enabled=true \
+  --set oidc.issuer=https://keycloak.example.com/realms/platform \
+  --set oidc.clientID=rpc-operator \
+  --set oidc.redirectURL=https://rpc-operator.example.com/api/v1/auth/callback \
+  --set oidc.uiRedirectURL=https://rpc-operator.example.com/ \
+  --set ingress.enabled=true \
+  --set ingress.host=rpc-operator.example.com
+```
+
+The UI's login screen now shows a **"Log in with SSO"** button above the
+existing Bearer-token form. Token paste stays available as a fallback for
+ServiceAccount tokens, CI/CD bots, and IdP outages.
+
+**Helm validation:** `oidc.enabled=true` requires `auth.enabled=true` plus
+non-empty `oidc.issuer`, `oidc.clientID`, and `oidc.redirectURL`. The chart
+renders with `fail "..."` otherwise.
+
+**Scope note:** without `offline_access`, most IdPs do not issue a refresh
+token; silent re-auth via `/api/v1/auth/refresh` then fails and the UI
+falls back to a full SSO round-trip on token expiry.
 
 Enable Mode C (status-board / public-display use case):
 
