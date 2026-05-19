@@ -1,0 +1,7 @@
+{
+  "bodyKind": "composite",
+  "replicaSafety": "unsafe",
+  "compositeFields": [
+    { "field": "inputs", "kind": "inputs", "multi": true }
+  ]
+}

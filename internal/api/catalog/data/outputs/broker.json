@@ -3,11 +3,6 @@
   "category": "outputs",
   "status": "stable",
   "summary": "Sends messages to multiple outputs simultaneously.",
-  "bodyKind": "composite",
-  "replicaSafety": "safe",
-  "compositeFields": [
-    { "field": "outputs", "kind": "outputs", "multi": true }
-  ],
   "configSchema": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",

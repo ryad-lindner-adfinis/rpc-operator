@@ -3,11 +3,6 @@
   "category": "outputs",
   "status": "stable",
   "summary": "Attempts outputs in order; routes to the next on failure.",
-  "bodyKind": "composite",
-  "replicaSafety": "safe",
-  "compositeFields": [
-    { "field": "", "kind": "outputs", "multi": true }
-  ],
   "configSchema": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",

@@ -3,11 +3,6 @@
   "category": "inputs",
   "status": "stable",
   "summary": "Runs multiple inputs sequentially, exhausting each before the next.",
-  "bodyKind": "composite",
-  "replicaSafety": "unsafe",
-  "compositeFields": [
-    { "field": "inputs", "kind": "inputs", "multi": true }
-  ],
   "configSchema": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",

@@ -3,8 +3,6 @@
   "category": "outputs",
   "status": "stable",
   "summary": "Sends each message as an HTTP request to a target URL.",
-  "bodyKind": "object",
-  "replicaSafety": "safe",
   "configSchema": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",

@@ -3,8 +3,6 @@
   "category": "inputs",
   "status": "stable",
   "summary": "Subscribes to a NATS subject and emits received messages.",
-  "bodyKind": "object",
-  "replicaSafety": "safe",
   "configSchema": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",

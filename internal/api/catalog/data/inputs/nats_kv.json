@@ -3,8 +3,6 @@
   "category": "inputs",
   "status": "stable",
   "summary": "Watches a NATS JetStream Key-Value bucket and emits an entry for each put/delete operation.",
-  "bodyKind": "object",
-  "replicaSafety": "unsafe",
   "configSchema": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",

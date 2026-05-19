@@ -3,8 +3,6 @@
   "category": "processors",
   "status": "stable",
   "summary": "Executes a raw SQL query for each message and replaces the message with the query result. Supports PostgreSQL, SQLite, MySQL, and others.",
-  "bodyKind": "object",
-  "replicaSafety": "safe",
   "configSchema": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",

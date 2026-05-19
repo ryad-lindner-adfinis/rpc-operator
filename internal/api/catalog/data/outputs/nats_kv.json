@@ -3,8 +3,6 @@
   "category": "outputs",
   "status": "stable",
   "summary": "Puts or deletes a key in a NATS JetStream Key-Value bucket.",
-  "bodyKind": "object",
-  "replicaSafety": "safe",
   "configSchema": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",

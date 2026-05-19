@@ -3,8 +3,6 @@
   "category": "outputs",
   "status": "stable",
   "summary": "Publishes messages to a NATS subject.",
-  "bodyKind": "object",
-  "replicaSafety": "safe",
   "configSchema": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",
