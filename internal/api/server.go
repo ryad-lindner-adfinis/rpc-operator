@@ -130,6 +130,11 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	// (read-only) state without a token.
 	mux.HandleFunc("GET /api/v1/auth/whoami", s.authOrAnonymous(s.handleWhoami))
 
+	// F20b: public, token-free capabilities probe. Registered unconditionally
+	// (reports oidcEnabled=false when OIDC is off) so the login screen can show
+	// the SSO button in Mode B strict, where whoami 401s before login.
+	mux.HandleFunc("GET /api/v1/auth/config", s.handleAuthConfig)
+
 	// F21 + F42: allowlist endpoint; anonymous-eligible in Mode C.
 	mux.HandleFunc("GET /api/v1/namespaces", s.authOrAnonymous(s.handleListNamespaces))
 

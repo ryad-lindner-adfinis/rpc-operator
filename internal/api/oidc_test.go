@@ -734,6 +734,59 @@ func TestOIDC_Whoami_ReportsOIDCDisabledWhenNoConfig(t *testing.T) {
 	}
 }
 
+// The regression this guards: in Mode B strict the SSO button could never
+// appear because oidcEnabled only rode on whoami, which 401s without a token.
+// /auth/config must report oidcEnabled WITHOUT authentication.
+func TestOIDC_AuthConfig_ReachableWithoutTokenInModeBStrict(t *testing.T) {
+	idp := newMockIdP(t)
+	cat, err := catalog.Load()
+	if err != nil {
+		t.Fatalf("catalog.Load: %v", err)
+	}
+	// Auth on, no anonymous-read (Mode B strict), OIDC configured.
+	srv := &api.Server{
+		Addr:        ":0",
+		Client:      newFakeClient(t),
+		Catalog:     cat,
+		AuthEnabled: true,
+		OIDC:        &api.OIDCConfig{Issuer: idp.issuer(), ClientID: testClientID},
+	}
+	api.PrepareOIDCStoreForTest(srv)
+	mux := http.NewServeMux()
+	srv.RegisterRoutesForTest(mux)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/auth/config") // no Authorization header
+	if err != nil {
+		t.Fatalf("GET /auth/config: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 without token, got %d", resp.StatusCode)
+	}
+	body := readBodyJSON(t, resp)
+	if enabled, _ := body["oidcEnabled"].(bool); !enabled {
+		t.Errorf("config.oidcEnabled = false, want true (OIDC configured)")
+	}
+}
+
+func TestOIDC_AuthConfig_ReportsDisabledWhenNoConfig(t *testing.T) {
+	ts := newTestServerAuthOn(t) // auth on but no OIDC
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/auth/config")
+	if err != nil {
+		t.Fatalf("GET /auth/config: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	body := readBodyJSON(t, resp)
+	if enabled, ok := body["oidcEnabled"].(bool); !ok || enabled {
+		t.Errorf("config.oidcEnabled = %v, want false (no OIDC config)", body["oidcEnabled"])
+	}
+}
+
 func TestOIDC_Disabled_LoginRoute404(t *testing.T) {
 	ts := newTestServerAuthOn(t) // auth on but no OIDC
 	defer ts.Close()

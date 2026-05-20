@@ -155,6 +155,16 @@ func (s *Server) clientsetForRequest(r *http.Request) (*kubernetes.Clientset, er
 	return kubernetes.NewForConfig(cfg)
 }
 
+// handleAuthConfig reports pre-login UI capabilities and is intentionally
+// unauthenticated. In Mode B strict, whoami 401s without a token, so the SSO
+// button could never appear if oidcEnabled only rode on the whoami response —
+// the UI fetches this endpoint to learn OIDC availability before authenticating.
+func (s *Server) handleAuthConfig(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"oidcEnabled": s.OIDC != nil,
+	})
+}
+
 // handleWhoami returns the current user identity. Mode A: anonymous.
 // Mode C (F42 anonymous-read, no token): anonymous + readOnly=true.
 // Mode B authenticated: result of K8s SelfSubjectReview using the user's token.
