@@ -41,5 +41,9 @@ internal/api/static/*
 ui/node_modules/
 ui/tsconfig.tsbuildinfo
 
-# Local dev helpers (per-developer SA-token setup, scratch scripts)
+# Local dev helpers (per-developer SA-token setup, scratch scripts, runners)
 role.sh
+run.sh
+
+# macOS folder metadata
+.DS_Store
