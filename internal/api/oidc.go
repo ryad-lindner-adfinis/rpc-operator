@@ -21,7 +21,7 @@ import (
 type OIDCConfig struct {
 	Issuer        string   // e.g. https://accounts.google.com or https://keycloak.example.com/realms/x
 	ClientID      string   // OAuth 2.0 client ID registered at the IdP
-	Scopes        []string // default: ["openid", "profile", "email", "offline_access"]
+	Scopes        []string // default: ["openid", "email", "offline_access"]
 	RedirectURL   string   // public-facing https://<host>/api/v1/auth/callback
 	UIRedirectURL string   // public-facing UI root, where the browser lands after callback success
 }

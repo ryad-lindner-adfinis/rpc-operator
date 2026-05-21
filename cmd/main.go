@@ -111,7 +111,7 @@ func main() {
 		"F20b: OIDC issuer URL (empty = OIDC disabled; F20a token-paste remains).")
 	flag.StringVar(&oidcClientID, "oidc-client-id", "",
 		"F20b: OIDC client ID registered at the IdP. Public client (PKCE).")
-	flag.StringVar(&oidcScopesRaw, "oidc-scopes", "openid,profile,email,offline_access",
+	flag.StringVar(&oidcScopesRaw, "oidc-scopes", "openid,email,offline_access",
 		"F20b: comma-separated OIDC scopes. offline_access is required for refresh tokens.")
 	flag.StringVar(&oidcRedirectURL, "oidc-redirect-url", "",
 		"F20b: full public callback URL (https://<host>/api/v1/auth/callback). Must match the IdP registration.")

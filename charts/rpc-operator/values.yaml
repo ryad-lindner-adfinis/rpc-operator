@@ -74,7 +74,7 @@ oidc:
   enabled: false
   issuer: ""             # z.B. https://keycloak.example.com/realms/platform
   clientID: ""           # OAuth 2.0 Client-ID (public client mit PKCE)
-  scopes: "openid,profile,email,offline_access"
+  scopes: "openid,email,offline_access"
   redirectURL: ""        # https://<host>/api/v1/auth/callback (muss am IdP registriert sein)
   uiRedirectURL: ""      # https://<host>/ (Browser landet hier nach Callback; leer = "/")
 

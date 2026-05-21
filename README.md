@@ -211,7 +211,7 @@ OIDC flags:
 Register a **public OAuth 2.0 client** at the IdP with:
 
 - Redirect URI: `https://rpc-operator.example.com/api/v1/auth/callback`
-- Allowed scopes: `openid profile email offline_access`
+- Allowed scopes: `openid email offline_access` (the operator's default request set; `profile` is not needed for apiserver authn)
 - PKCE: required (S256). No client secret.
 
 Then install / upgrade the chart:
