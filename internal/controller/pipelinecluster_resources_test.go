@@ -37,3 +37,19 @@ func TestClusterConfigYAML_PlainLogging(t *testing.T) {
 		t.Errorf("expected logfmt format, got:\n%s", cfg)
 	}
 }
+
+func TestBuildClusterService_Headless(t *testing.T) {
+	svc := buildClusterService("etl-small", "etl-small")
+	if svc.Name != "etl-small" {
+		t.Errorf("expected service name etl-small, got %q", svc.Name)
+	}
+	if svc.Spec.ClusterIP != "None" {
+		t.Errorf("expected headless service (ClusterIP None), got %q", svc.Spec.ClusterIP)
+	}
+	if svc.Spec.Selector[clusterLabelKey] != "etl-small" {
+		t.Errorf("expected selector %s=etl-small, got %v", clusterLabelKey, svc.Spec.Selector)
+	}
+	if len(svc.Spec.Ports) != 1 || svc.Spec.Ports[0].Port != httpPort {
+		t.Errorf("expected single port %d, got %v", httpPort, svc.Spec.Ports)
+	}
+}
