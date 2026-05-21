@@ -46,6 +46,7 @@ logger:
 // buildClusterService returns a headless Service fronting the cluster's pods.
 // Headless (ClusterIP: None) because the streams API is pod-local — Phase 2
 // addresses individual pods by their stable StatefulSet DNS names.
+// Namespace is intentionally unset; the reconciler keys the object before applying.
 func buildClusterService(clusterName, svcName string) *corev1.Service {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{Name: svcName},
@@ -66,6 +67,7 @@ func buildClusterService(clusterName, svcName string) *corev1.Service {
 // instances. Stable pod identities (StatefulSet) enable pod-addressable stream
 // placement in Phase 2. RestartPolicy is the StatefulSet default (Always):
 // these are long-running servers, unlike the finite single-pod Pipeline model.
+// Namespace is intentionally unset; the reconciler keys the object before applying.
 func buildClusterStatefulSet(
 	clusterName, image string,
 	replicas int32,

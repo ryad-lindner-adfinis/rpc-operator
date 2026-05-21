@@ -82,7 +82,7 @@ func TestBuildClusterStatefulSet(t *testing.T) {
 	if c.Image != defaultImage {
 		t.Errorf("expected default image %q, got %q", defaultImage, c.Image)
 	}
-	wantArgs := []string{"-c", "/etc/rpc/connect.yaml", "streams"}
+	wantArgs := []string{"-c", configMountPath + "/" + clusterConfigFile, "streams"}
 	if len(c.Args) != 3 || c.Args[0] != wantArgs[0] || c.Args[1] != wantArgs[1] || c.Args[2] != wantArgs[2] {
 		t.Errorf("expected args %v, got %v", wantArgs, c.Args)
 	}
