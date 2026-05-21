@@ -1,0 +1,14 @@
+apiVersion: rpc.operator.io/v1alpha1
+kind: PipelineCluster
+metadata:
+  name: pipelinecluster-sample
+spec:
+  replicas: 3
+  jsonLogging: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
