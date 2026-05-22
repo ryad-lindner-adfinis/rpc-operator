@@ -122,7 +122,11 @@ func (r *PipelineReconciler) handleClusterAssigned(ctx context.Context, pipe *rp
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	ordinal, ok := leastLoadedInstance(ready, load)
+	currentInstance := ""
+	if pipe.Status.AssignedCluster == cluster.Name {
+		currentInstance = pipe.Status.AssignedInstance
+	}
+	ordinal, ok := pickInstance(currentInstance, cluster.Name, ready, load)
 	if !ok {
 		return r.markClusterPending(ctx, pipe, "ClusterNotReady",
 			fmt.Sprintf("cluster %q has no ready instances", cluster.Name))

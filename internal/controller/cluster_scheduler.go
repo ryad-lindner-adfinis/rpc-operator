@@ -30,6 +30,21 @@ func ordinalFromPodName(podName, clusterName string) (int32, bool) {
 	return int32(n), true
 }
 
+// pickInstance chooses the instance for a pipeline: its current ordinal if that
+// instance is still ready (sticky placement — avoids spurious migration on plain
+// reconciles), otherwise the least-loaded ready instance. currentInstance is the
+// pipeline's status.assignedInstance (empty when unplaced).
+func pickInstance(currentInstance, clusterName string, readyOrdinals []int32, loadByOrdinal map[int32]int) (int32, bool) {
+	if cur, ok := ordinalFromPodName(currentInstance, clusterName); ok {
+		for _, o := range readyOrdinals {
+			if o == cur {
+				return cur, true
+			}
+		}
+	}
+	return leastLoadedInstance(readyOrdinals, loadByOrdinal)
+}
+
 // leastLoadedInstance picks the ready ordinal with the fewest placed pipelines.
 // Ties resolve to the lowest ordinal. Returns ok=false when no instance is ready.
 func leastLoadedInstance(readyOrdinals []int32, loadByOrdinal map[int32]int) (int32, bool) {

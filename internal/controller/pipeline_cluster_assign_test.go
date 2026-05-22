@@ -151,8 +151,69 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		Expect(got.Status.Phase).To(Equal(rpcv1alpha1.PhaseFailed))
 	})
 
+	It("keeps a placed pipeline on the same instance across reconciles (sticky)", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "c5", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 2},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "c5", namespace, 0)
+		makeReadyClusterPod(ctx, "c5", namespace, 1)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p5", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c5", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		nn := assign("p5")
+		got := &rpcv1alpha1.Pipeline{}
+		Expect(k8sClient.Get(ctx, nn, got)).To(Succeed())
+		firstInstance := got.Status.AssignedInstance
+		Expect(firstInstance).NotTo(BeEmpty())
+
+		// reconcile several more times; placement must not move
+		for i := 0; i < 3; i++ {
+			_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+			Expect(err).NotTo(HaveOccurred())
+		}
+		Expect(k8sClient.Get(ctx, nn, got)).To(Succeed())
+		Expect(got.Status.AssignedInstance).To(Equal(firstInstance))
+		// exactly one placement: the stream exists only on its assigned instance
+		Expect(fake.Has("http://"+firstInstance+".c5."+namespace+".svc:4195", "p5")).To(BeTrue())
+		other := "c5-0"
+		if firstInstance == "c5-0" {
+			other = "c5-1"
+		}
+		Expect(fake.Has("http://"+other+".c5."+namespace+".svc:4195", "p5")).To(BeFalse())
+	})
+
+	It("spreads two pipelines across ready instances (least-loaded)", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "c6", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 2},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "c6", namespace, 0)
+		makeReadyClusterPod(ctx, "c6", namespace, 1)
+
+		for _, n := range []string{"p6", "p7"} {
+			p := &rpcv1alpha1.Pipeline{
+				ObjectMeta: metav1.ObjectMeta{Name: n, Namespace: namespace},
+				Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c6", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			}
+			Expect(k8sClient.Create(ctx, p)).To(Succeed())
+			assign(n)
+		}
+		g6 := &rpcv1alpha1.Pipeline{}
+		g7 := &rpcv1alpha1.Pipeline{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "p6", Namespace: namespace}, g6)).To(Succeed())
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "p7", Namespace: namespace}, g7)).To(Succeed())
+		Expect(g6.Status.AssignedInstance).NotTo(Equal(g7.Status.AssignedInstance))
+	})
+
 	AfterEach(func() {
-		for _, n := range []string{"p1", "p2", "p3", "p4"} {
+		for _, n := range []string{"p1", "p2", "p3", "p4", "p5", "p6", "p7"} {
 			p := &rpcv1alpha1.Pipeline{}
 			if err := k8sClient.Get(ctx, types.NamespacedName{Name: n, Namespace: namespace}, p); err == nil {
 				p.Finalizers = nil
@@ -161,7 +222,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			}
 		}
 		_ = k8sClient.DeleteAllOf(ctx, &corev1.Pod{}, client.InNamespace(namespace))
-		for _, c := range []string{"c1", "c2", "c3"} {
+		for _, c := range []string{"c1", "c2", "c3", "c5", "c6"} {
 			cl := &rpcv1alpha1.PipelineCluster{}
 			if err := k8sClient.Get(ctx, types.NamespacedName{Name: c, Namespace: namespace}, cl); err == nil {
 				_ = k8sClient.Delete(ctx, cl)

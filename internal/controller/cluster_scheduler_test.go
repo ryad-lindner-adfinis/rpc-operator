@@ -54,3 +54,25 @@ func TestLeastLoadedInstance(t *testing.T) {
 		t.Errorf("expected ordinal 0 on tie, got (%d,%v)", got, ok)
 	}
 }
+
+func TestPickInstance(t *testing.T) {
+	// sticky: current instance still ready → reused, even if another is less loaded
+	got, ok := pickInstance("c-1", "c", []int32{0, 1}, map[int32]int{0: 0, 1: 5})
+	if !ok || got != 1 {
+		t.Errorf("expected sticky reuse of ordinal 1, got (%d,%v)", got, ok)
+	}
+	// current instance no longer ready → fall through to least-loaded
+	got, ok = pickInstance("c-2", "c", []int32{0, 1}, map[int32]int{0: 3, 1: 1})
+	if !ok || got != 1 {
+		t.Errorf("expected least-loaded ordinal 1, got (%d,%v)", got, ok)
+	}
+	// unplaced (empty current) → least-loaded (lowest on empty)
+	got, ok = pickInstance("", "c", []int32{0, 1}, map[int32]int{})
+	if !ok || got != 0 {
+		t.Errorf("expected ordinal 0 when unplaced, got (%d,%v)", got, ok)
+	}
+	// no ready instances → ok=false
+	if _, ok := pickInstance("c-0", "c", nil, map[int32]int{}); ok {
+		t.Errorf("expected ok=false with no ready instances")
+	}
+}
