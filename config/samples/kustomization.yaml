@@ -1,5 +1,6 @@
 ## Append samples of your project ##
 resources:
 - rpc_v1alpha1_pipeline.yaml
+- rpc_v1alpha1_pipeline_clusterref.yaml
 - rpc_v1alpha1_pipelinecluster.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

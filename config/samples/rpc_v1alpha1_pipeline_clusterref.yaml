@@ -1,0 +1,28 @@
+# F47 Phase 2: a pipeline assigned to a PipelineCluster. With spec.clusterRef set,
+# the operator deploys this pipeline as a *stream* onto the least-loaded ready
+# instance of the named cluster instead of giving it its own pod. The placement
+# (cluster, instance, stream id) is reported in status. Requires the
+# PipelineCluster from rpc_v1alpha1_pipelinecluster.yaml to exist and be Ready.
+# Note: pipelines that carry their own secretRefs cannot join a cluster (yet).
+apiVersion: rpc.operator.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: hello-world-clustered
+  labels:
+    app.kubernetes.io/name: rpc-operator
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  clusterRef: pipelinecluster-sample
+  input:
+    type: generate
+    config:
+      mapping: 'root = "hello from a cluster stream"'
+      interval: "1s"
+      count: 5
+  processors:
+    # The 'mapping' processor takes a scalar string body, not an object.
+    - type: mapping
+      config: "root = content().uppercase()"
+  output:
+    type: stdout
+    config: {}
