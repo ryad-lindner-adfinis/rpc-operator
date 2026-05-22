@@ -135,7 +135,7 @@ type PipelineStatus struct {
 	// +optional
 	AssignedInstance string `json:"assignedInstance,omitempty"`
 
-	// StreamID is the deployed stream id (= pipeline name); empty in pod mode.
+	// StreamID is the deployed stream ID (= pipeline name); empty in pod mode.
 	// F47 Phase 2.
 	// +optional
 	StreamID string `json:"streamID,omitempty"`
