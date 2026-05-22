@@ -49,6 +49,12 @@ spec:
           spec:
             description: PipelineSpec defines the desired state of Pipeline.
             properties:
+              clusterRef:
+                description: |-
+                  ClusterRef names a PipelineCluster in the same namespace. When set, the
+                  pipeline is deployed as a stream into that cluster instead of getting its
+                  own pod. Empty = one-pod model (unchanged). F47 Phase 2.
+                type: string
               image:
                 default: docker.redpanda.com/redpandadata/connect:4
                 type: string
@@ -169,6 +175,16 @@ spec:
           status:
             description: PipelineStatus defines the observed state of Pipeline.
             properties:
+              assignedCluster:
+                description: |-
+                  AssignedCluster is the PipelineCluster the pipeline's stream currently runs
+                  on; empty in pod mode. F47 Phase 2.
+                type: string
+              assignedInstance:
+                description: |-
+                  AssignedInstance is the cluster pod (e.g. etl-small-1) hosting the stream;
+                  empty in pod mode. F47 Phase 2.
+                type: string
               conditions:
                 items:
                   description: Condition contains details for one aspect of the current
@@ -241,6 +257,11 @@ spec:
                 - Stopped
                 type: string
               podName:
+                type: string
+              streamID:
+                description: |-
+                  StreamID is the deployed stream id (= pipeline name); empty in pod mode.
+                  F47 Phase 2.
                 type: string
             type: object
         required:
