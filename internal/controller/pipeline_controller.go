@@ -36,6 +36,7 @@ import (
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 	"github.com/insidegreen/rpc-operator-claude/internal/render"
+	"github.com/insidegreen/rpc-operator-claude/internal/streams"
 )
 
 const (
@@ -46,12 +47,14 @@ const (
 // PipelineReconciler reconciles a Pipeline object.
 type PipelineReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme  *runtime.Scheme
+	Streams streams.Client
 }
 
 // +kubebuilder:rbac:groups=rpc.operator.io,resources=pipelines,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rpc.operator.io,resources=pipelines/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=rpc.operator.io,resources=pipelines/finalizers,verbs=update
+// +kubebuilder:rbac:groups=rpc.operator.io,resources=pipelineclusters,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
@@ -94,6 +97,11 @@ func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// recreating the pod on every loop.
 	if pipe.Spec.Stopped {
 		return r.handleStopped(ctx, &pipe)
+	}
+
+	// F47: clusterRef pipelines run as a stream inside a PipelineCluster, not a pod.
+	if pipe.Spec.ClusterRef != "" {
+		return r.handleClusterAssigned(ctx, &pipe)
 	}
 
 	yamlStr, err := render.RenderPipelineYAML(&pipe.Spec)

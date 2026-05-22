@@ -42,6 +42,7 @@ import (
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 	"github.com/insidegreen/rpc-operator-claude/internal/api"
 	"github.com/insidegreen/rpc-operator-claude/internal/controller"
+	"github.com/insidegreen/rpc-operator-claude/internal/streams"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -260,8 +261,9 @@ func main() {
 	}
 
 	if err := (&controller.PipelineReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:  mgr.GetClient(),
+		Scheme:  mgr.GetScheme(),
+		Streams: streams.NewHTTPClient(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "pipeline")
 		os.Exit(1)

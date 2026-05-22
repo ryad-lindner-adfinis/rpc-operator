@@ -280,3 +280,28 @@ func TestRenderPipelineYAML_ProcessorLabel(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderStreamConfig_StripsHTTPBlock(t *testing.T) {
+	spec := &rpcv1alpha1.PipelineSpec{
+		Input:  rpcv1alpha1.ComponentSpec{Type: "generate", Config: runtime.RawExtension{Raw: []byte(`{"mapping":"root = \"x\"","count":1}`)}},
+		Output: rpcv1alpha1.ComponentSpec{Type: "drop", Config: runtime.RawExtension{Raw: []byte(`{}`)}},
+	}
+	out, err := render.RenderStreamConfig(spec)
+	if err != nil {
+		t.Fatalf("RenderStreamConfig: %v", err)
+	}
+	if strings.Contains(out, "http:") {
+		t.Errorf("stream config must not contain an http block, got:\n%s", out)
+	}
+	if !strings.Contains(out, "generate:") || !strings.Contains(out, "drop:") {
+		t.Errorf("stream config must contain the pipeline components, got:\n%s", out)
+	}
+
+	disp, err := render.RenderPipelineYAMLForDisplay(spec)
+	if err != nil {
+		t.Fatalf("RenderPipelineYAMLForDisplay: %v", err)
+	}
+	if disp != out {
+		t.Errorf("RenderPipelineYAMLForDisplay should equal RenderStreamConfig output")
+	}
+}

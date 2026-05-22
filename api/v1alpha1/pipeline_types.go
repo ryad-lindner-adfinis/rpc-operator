@@ -98,6 +98,12 @@ type PipelineSpec struct {
 	// +kubebuilder:default=false
 	// +optional
 	Stopped bool `json:"stopped,omitempty"`
+
+	// ClusterRef names a PipelineCluster in the same namespace. When set, the
+	// pipeline is deployed as a stream into that cluster instead of getting its
+	// own pod. Empty = one-pod model (unchanged). F47 Phase 2.
+	// +optional
+	ClusterRef string `json:"clusterRef,omitempty"`
 }
 
 // PipelinePhase reports the high-level lifecycle stage of a Pipeline's pod.
@@ -118,6 +124,21 @@ type PipelineStatus struct {
 
 	// +optional
 	PodName string `json:"podName,omitempty"`
+
+	// AssignedCluster is the PipelineCluster the pipeline's stream currently runs
+	// on; empty in pod mode. F47 Phase 2.
+	// +optional
+	AssignedCluster string `json:"assignedCluster,omitempty"`
+
+	// AssignedInstance is the cluster pod (e.g. etl-small-1) hosting the stream;
+	// empty in pod mode. F47 Phase 2.
+	// +optional
+	AssignedInstance string `json:"assignedInstance,omitempty"`
+
+	// StreamID is the deployed stream ID (= pipeline name); empty in pod mode.
+	// F47 Phase 2.
+	// +optional
+	StreamID string `json:"streamID,omitempty"`
 
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`

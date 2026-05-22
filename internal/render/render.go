@@ -61,16 +61,23 @@ func RenderPipelineYAML(spec *rpcv1alpha1.PipelineSpec) (string, error) {
 	return string(out), nil
 }
 
-// RenderPipelineYAMLForDisplay produces user-facing YAML identical to what the
-// pipeline pod runs, minus the operator-injected http server block on :4195
-// (liveness/readiness/metrics). Use this for UI display only — the controller
-// must keep using RenderPipelineYAML so the pod has its probes.
-func RenderPipelineYAMLForDisplay(spec *rpcv1alpha1.PipelineSpec) (string, error) {
+// RenderStreamConfig produces the config body posted to a cluster instance's
+// streams API (PUT /streams/{id}). It is the rendered pipeline minus the http
+// server block, because the cluster pod already runs its own HTTP server on that port.
+func RenderStreamConfig(spec *rpcv1alpha1.PipelineSpec) (string, error) {
 	out, err := RenderPipelineYAML(spec)
 	if err != nil {
 		return "", err
 	}
 	return stripHTTPBlock(out)
+}
+
+// RenderPipelineYAMLForDisplay produces the user-facing YAML shown in the UI:
+// the rendered config minus the operator-injected http server block. It is the
+// same output as RenderStreamConfig (delegates to it) — the controller must keep
+// using RenderPipelineYAML so the pod retains its liveness/readiness probes.
+func RenderPipelineYAMLForDisplay(spec *rpcv1alpha1.PipelineSpec) (string, error) {
+	return RenderStreamConfig(spec)
 }
 
 // stripHTTPBlock removes the top-level "http" key from a YAML document.
