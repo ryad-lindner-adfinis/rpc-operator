@@ -2,19 +2,20 @@ package streams
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
 
 func TestHTTPClient_EnsureStream_PUT(t *testing.T) {
-	var gotMethod, gotPath, gotBody string
+	var gotMethod, gotPath, gotBody, gotCT string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotMethod = r.Method
 		gotPath = r.URL.Path
-		buf := make([]byte, r.ContentLength)
-		_, _ = r.Body.Read(buf)
-		gotBody = string(buf)
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		gotCT = r.Header.Get("Content-Type")
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
@@ -31,6 +32,20 @@ func TestHTTPClient_EnsureStream_PUT(t *testing.T) {
 	}
 	if gotBody != "input: {}\n" {
 		t.Errorf("body not forwarded, got %q", gotBody)
+	}
+	if gotCT != "application/x-yaml" {
+		t.Errorf("expected Content-Type application/x-yaml, got %q", gotCT)
+	}
+}
+
+func TestHTTPClient_EnsureStream_ErrorOn500(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+	c := NewHTTPClient()
+	if err := c.EnsureStream(context.Background(), srv.URL, "x", "input: {}\n"); err == nil {
+		t.Errorf("expected error on 500, got nil")
 	}
 }
 

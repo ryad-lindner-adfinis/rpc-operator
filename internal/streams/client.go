@@ -61,6 +61,7 @@ func (c *HTTPClient) EnsureStream(ctx context.Context, podBaseURL, streamID, con
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("PUT stream %s: status %d: %s", streamID, resp.StatusCode, string(body))
 	}
+	_, _ = io.Copy(io.Discard, resp.Body)
 	return nil
 }
 
@@ -76,12 +77,14 @@ func (c *HTTPClient) DeleteStream(ctx context.Context, podBaseURL, streamID stri
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusNotFound {
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil
 	}
 	if resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("DELETE stream %s: status %d: %s", streamID, resp.StatusCode, string(body))
 	}
+	_, _ = io.Copy(io.Discard, resp.Body)
 	return nil
 }
 
