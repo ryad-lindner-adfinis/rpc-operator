@@ -18,7 +18,7 @@ spec:
     config:
       mapping: 'root = "hello from a cluster stream"'
       interval: "1s"
-      count: 5
+      count: 0
   processors:
     # The 'mapping' processor takes a scalar string body, not an object.
     - type: mapping
