@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 )
 
@@ -38,6 +39,16 @@ func streamLogMatch(line []byte, streamID string) bool {
 		return false
 	}
 	return s == streamID
+}
+
+// buildMetricQuery returns the PromQL rate() for a base metric. When stream is
+// empty it filters by pod only (pod mode); otherwise it also filters by the
+// per-stream label (cluster mode). F47 Phase 3a.
+func buildMetricQuery(metric, pod, stream string) string {
+	if stream == "" {
+		return fmt.Sprintf(`rate(%s{pod=%q}[1m])`, metric, pod)
+	}
+	return fmt.Sprintf(`rate(%s{pod=%q,%s=%q}[1m])`, metric, pod, streamMetricLabel, stream)
 }
 
 // filterBacklog reads newline-delimited log lines from r, keeps those matching

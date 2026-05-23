@@ -26,6 +26,17 @@ func TestStreamLogMatch(t *testing.T) {
 	}
 }
 
+func TestBuildMetricQuery(t *testing.T) {
+	pod := buildMetricQuery("output_sent", "demo-pod", "")
+	if pod != `rate(output_sent{pod="demo-pod"}[1m])` {
+		t.Errorf("pod-mode query wrong: %q", pod)
+	}
+	cl := buildMetricQuery("output_sent", "etl-0", "demo")
+	if cl != `rate(output_sent{pod="etl-0",stream="demo"}[1m])` {
+		t.Errorf("cluster-mode query wrong: %q", cl)
+	}
+}
+
 func TestFilterBacklog_CapsToLastN(t *testing.T) {
 	// 5 matching lines for "demo" interleaved with other streams + system lines.
 	var b strings.Builder

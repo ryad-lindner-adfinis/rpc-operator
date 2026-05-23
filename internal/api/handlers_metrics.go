@@ -27,16 +27,16 @@ type MetricsResponse struct {
 	Datapoints []MetricsDatapoint `json:"datapoints"`
 }
 
-// knownQueries maps symbolic query names to PromQL templates.
-// %s is replaced with the pod name.
+// knownQueries maps symbolic query names to base metric names and units.
+// PromQL is built dynamically per-mode by buildMetricQuery.
 var knownQueries = map[string]struct {
-	tpl  string
-	unit string
+	metric string
+	unit   string
 }{
-	"throughput":           {`rate(output_sent{pod="%s"}[1m])`, "msg/s"},
-	"error_rate":           {`rate(output_error{pod="%s"}[1m])`, "msg/s"},
-	"input_rate":           {`rate(input_received{pod="%s"}[1m])`, "msg/s"},
-	"processor_error_rate": {`rate(processor_error{pod="%s"}[1m])`, "msg/s"},
+	"throughput":           {"output_sent", "msg/s"},
+	"error_rate":           {"output_error", "msg/s"},
+	"input_rate":           {"input_received", "msg/s"},
+	"processor_error_rate": {"processor_error", "msg/s"},
 }
 
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
@@ -76,7 +76,14 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if pipe.Status.PodName == "" {
+	// F47 Phase 3a: pick the pod + stream filter from placement.
+	pod := pipe.Status.PodName
+	stream := ""
+	if pipe.Status.AssignedInstance != "" {
+		pod = pipe.Status.AssignedInstance
+		stream = pipe.Name
+	}
+	if pod == "" {
 		writeJSONError(w, http.StatusConflict, "no_running_pod", "pipeline has no running pod")
 		return
 	}
@@ -87,7 +94,7 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	promQL := fmt.Sprintf(q.tpl, pipe.Status.PodName)
+	promQL := buildMetricQuery(q.metric, pod, stream)
 	datapoints, err := s.queryPrometheus(r.Context(), promQL, start, end, step)
 	if err != nil {
 		writeJSONError(w, http.StatusBadGateway, "prometheus_error", err.Error())
