@@ -296,6 +296,41 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		Expect(fake.Has("http://c12-1.c12."+namespace+".svc:4195", "p12")).To(BeTrue())
 	})
 
+	It("deletes the stream on the old cluster when clusterRef changes (migration)", func() {
+		for _, c := range []string{"c13a", "c13b"} {
+			cl := &rpcv1alpha1.PipelineCluster{
+				ObjectMeta: metav1.ObjectMeta{Name: c, Namespace: namespace},
+				Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+			}
+			Expect(k8sClient.Create(ctx, cl)).To(Succeed())
+			makeReadyClusterPod(ctx, c, namespace, 0)
+		}
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p13", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c13a", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		nn := assign("p13")
+		urlA := "http://c13a-0.c13a." + namespace + ".svc:4195"
+		urlB := "http://c13b-0.c13b." + namespace + ".svc:4195"
+		Expect(fake.Has(urlA, "p13")).To(BeTrue())
+
+		got := &rpcv1alpha1.Pipeline{}
+		Expect(k8sClient.Get(ctx, nn, got)).To(Succeed())
+		got.Spec.ClusterRef = "c13b"
+		Expect(k8sClient.Update(ctx, got)).To(Succeed())
+
+		assign("p13")
+		Expect(fake.Has(urlA, "p13")).To(BeFalse()) // old stream removed
+		Expect(fake.Has(urlB, "p13")).To(BeTrue())  // new stream created
+
+		Expect(k8sClient.Get(ctx, nn, got)).To(Succeed())
+		Expect(got.Status.AssignedCluster).To(Equal("c13b"))
+		Expect(got.Status.AssignedInstance).To(Equal("c13b-0"))
+	})
+
 	AfterEach(func() {
 		pipes := &rpcv1alpha1.PipelineList{}
 		Expect(k8sClient.List(ctx, pipes, client.InNamespace(namespace))).To(Succeed())

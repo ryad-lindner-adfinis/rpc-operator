@@ -120,6 +120,10 @@ func (r *PipelineReconciler) handleClusterAssigned(ctx context.Context, pipe *rp
 		return ctrl.Result{}, err
 	}
 
+	if err := r.migrateFromOldCluster(ctx, pipe, cluster.Name); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	ready, err := r.readyClusterOrdinals(ctx, cluster.Name, pipe.Namespace)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -155,6 +159,24 @@ func (r *PipelineReconciler) handleClusterAssigned(ctx context.Context, pipe *rp
 	}
 	cond := metav1.Condition{Type: "Ready", Status: metav1.ConditionTrue, Reason: reason, Message: msg}
 	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseRunning, cluster.Name, instance, pipe.Name, cond, resyncInterval)
+}
+
+// migrateFromOldCluster deletes the pipeline's stream on a previously assigned
+// cluster when spec.clusterRef now points at a different cluster. Idempotent:
+// DeleteStream treats a missing stream (404) as success. F47 Phase 2b.
+func (r *PipelineReconciler) migrateFromOldCluster(ctx context.Context, pipe *rpcv1alpha1.Pipeline, newCluster string) error {
+	old := pipe.Status.AssignedCluster
+	if old == "" || old == newCluster || pipe.Status.AssignedInstance == "" {
+		return nil
+	}
+	ord, ok := ordinalFromPodName(pipe.Status.AssignedInstance, old)
+	if !ok {
+		return nil
+	}
+	if err := r.Streams.DeleteStream(ctx, clusterPodURL(old, pipe.Namespace, ord), pipe.Name); err != nil {
+		return fmt.Errorf("delete stream on old cluster %s: %w", old, err)
+	}
+	return nil
 }
 
 // deletePodModeChildren removes the Pod, -config ConfigMap, and PodMonitor a
