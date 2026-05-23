@@ -212,21 +212,68 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		Expect(g6.Status.AssignedInstance).NotTo(Equal(g7.Status.AssignedInstance))
 	})
 
+	It("requeues an assigned pipeline after the resync interval", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "c10", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "c10", namespace, 0)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p10", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c10", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		nn := types.NamespacedName{Name: "p10", Namespace: namespace}
+		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn}) // adds finalizer
+		Expect(err).NotTo(HaveOccurred())
+		res, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn}) // assigns
+		Expect(err).NotTo(HaveOccurred())
+		Expect(res.RequeueAfter).To(Equal(resyncInterval))
+	})
+
+	It("re-asserts the stream after a pod restart (resync)", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "c11", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "c11", namespace, 0)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p11", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c11", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		url := "http://c11-0.c11." + namespace + ".svc:4195"
+		assign("p11")
+		Expect(fake.Has(url, "p11")).To(BeTrue())
+
+		fake.DropPod(url) // simulate the cluster pod restarting and losing its streams
+		Expect(fake.Has(url, "p11")).To(BeFalse())
+
+		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: types.NamespacedName{Name: "p11", Namespace: namespace}})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(fake.Has(url, "p11")).To(BeTrue()) // resync re-asserted the stream
+	})
+
 	AfterEach(func() {
-		for _, n := range []string{"p1", "p2", "p3", "p4", "p5", "p6", "p7"} {
-			p := &rpcv1alpha1.Pipeline{}
-			if err := k8sClient.Get(ctx, types.NamespacedName{Name: n, Namespace: namespace}, p); err == nil {
-				p.Finalizers = nil
-				_ = k8sClient.Update(ctx, p)
-				_ = k8sClient.Delete(ctx, p)
-			}
+		pipes := &rpcv1alpha1.PipelineList{}
+		Expect(k8sClient.List(ctx, pipes, client.InNamespace(namespace))).To(Succeed())
+		for i := range pipes.Items {
+			p := &pipes.Items[i]
+			p.Finalizers = nil
+			_ = k8sClient.Update(ctx, p)
+			_ = k8sClient.Delete(ctx, p)
 		}
 		_ = k8sClient.DeleteAllOf(ctx, &corev1.Pod{}, client.InNamespace(namespace))
-		for _, c := range []string{"c1", "c2", "c3", "c5", "c6"} {
-			cl := &rpcv1alpha1.PipelineCluster{}
-			if err := k8sClient.Get(ctx, types.NamespacedName{Name: c, Namespace: namespace}, cl); err == nil {
-				_ = k8sClient.Delete(ctx, cl)
-			}
+		clusters := &rpcv1alpha1.PipelineClusterList{}
+		Expect(k8sClient.List(ctx, clusters, client.InNamespace(namespace))).To(Succeed())
+		for i := range clusters.Items {
+			_ = k8sClient.Delete(ctx, &clusters.Items[i])
 		}
 	})
 })

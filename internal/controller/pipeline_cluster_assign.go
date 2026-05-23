@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"time"
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -32,6 +33,11 @@ import (
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 	"github.com/insidegreen/rpc-operator-claude/internal/render"
 )
+
+// resyncInterval is how often an assigned (or cluster-not-ready) pipeline is
+// re-reconciled so its stream is re-asserted (self-heal) and a pending pipeline
+// retries once its cluster becomes ready. F47 Phase 2b.
+const resyncInterval = 2 * time.Minute
 
 // clusterPodURL builds the streams-API base URL for one cluster instance via the
 // headless service DNS (<pod>.<svc>.<ns>.svc:httpPort). svc name == cluster name.
@@ -144,7 +150,7 @@ func (r *PipelineReconciler) handleClusterAssigned(ctx context.Context, pipe *rp
 	instance := fmt.Sprintf("%s-%d", cluster.Name, ordinal)
 	cond := metav1.Condition{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Assigned",
 		Message: fmt.Sprintf("stream running on %s", instance)}
-	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseRunning, cluster.Name, instance, pipe.Name, cond)
+	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseRunning, cluster.Name, instance, pipe.Name, cond, resyncInterval)
 }
 
 // deletePodModeChildren removes the Pod, -config ConfigMap, and PodMonitor a
@@ -167,19 +173,19 @@ func (r *PipelineReconciler) deletePodModeChildren(ctx context.Context, pipe *rp
 
 func (r *PipelineReconciler) markClusterFailed(ctx context.Context, pipe *rpcv1alpha1.Pipeline, reason, msg string) (ctrl.Result, error) {
 	cond := metav1.Condition{Type: "Ready", Status: metav1.ConditionFalse, Reason: reason, Message: msg}
-	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseFailed, "", "", "", cond)
+	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseFailed, "", "", "", cond, 0)
 }
 
 func (r *PipelineReconciler) markClusterPending(ctx context.Context, pipe *rpcv1alpha1.Pipeline, reason, msg string) (ctrl.Result, error) {
 	cond := metav1.Condition{Type: "Ready", Status: metav1.ConditionFalse, Reason: reason, Message: msg}
-	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhasePending, "", "", "", cond)
+	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhasePending, "", "", "", cond, resyncInterval)
 }
 
 // writeClusterStatus updates placement + phase + Ready condition only when changed.
 func (r *PipelineReconciler) writeClusterStatus(
 	ctx context.Context, pipe *rpcv1alpha1.Pipeline,
 	phase rpcv1alpha1.PipelinePhase, assignedCluster, assignedInstance, streamID string,
-	cond metav1.Condition,
+	cond metav1.Condition, requeueAfter time.Duration,
 ) (ctrl.Result, error) {
 	existing := apimeta.FindStatusCondition(pipe.Status.Conditions, "Ready")
 	condChanged := existing == nil || existing.Status != cond.Status || existing.Reason != cond.Reason || existing.Message != cond.Message
@@ -204,5 +210,5 @@ func (r *PipelineReconciler) writeClusterStatus(
 			return ctrl.Result{}, err
 		}
 	}
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: requeueAfter}, nil
 }
