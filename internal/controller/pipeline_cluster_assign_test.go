@@ -329,6 +329,43 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		Expect(k8sClient.Get(ctx, nn, got)).To(Succeed())
 		Expect(got.Status.AssignedCluster).To(Equal("c13b"))
 		Expect(got.Status.AssignedInstance).To(Equal("c13b-0"))
+		cond := apimeta.FindStatusCondition(got.Status.Conditions, "Ready")
+		Expect(cond).NotTo(BeNil())
+		Expect(cond.Reason).To(Equal("Assigned"))
+	})
+
+	It("releases the stream and clears placement when a clustered pipeline is stopped", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "c15", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "c15", namespace, 0)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p15", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c15", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		nn := assign("p15")
+		url := "http://c15-0.c15." + namespace + ".svc:4195"
+		Expect(fake.Has(url, "p15")).To(BeTrue())
+
+		got := &rpcv1alpha1.Pipeline{}
+		Expect(k8sClient.Get(ctx, nn, got)).To(Succeed())
+		got.Spec.Stopped = true
+		Expect(k8sClient.Update(ctx, got)).To(Succeed())
+
+		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(fake.Has(url, "p15")).To(BeFalse()) // stream released
+		Expect(k8sClient.Get(ctx, nn, got)).To(Succeed())
+		Expect(got.Status.Phase).To(Equal(rpcv1alpha1.PhaseStopped))
+		Expect(got.Status.AssignedCluster).To(BeEmpty())
+		Expect(got.Status.AssignedInstance).To(BeEmpty())
+		Expect(got.Status.StreamID).To(BeEmpty())
 	})
 
 	It("tears the stream down and recreates the pod when clusterRef is cleared (fallback)", func() {

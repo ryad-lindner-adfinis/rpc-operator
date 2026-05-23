@@ -161,18 +161,30 @@ func (r *PipelineReconciler) handleClusterAssigned(ctx context.Context, pipe *rp
 	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseRunning, cluster.Name, instance, pipe.Name, cond, resyncInterval)
 }
 
+// deleteAssignedStream deletes the pipeline's stream on its currently assigned
+// cluster instance, if any. No-op when the pipeline holds no placement.
+// Idempotent: DeleteStream treats a missing stream (404) as success. F47 Phase 2b.
+func (r *PipelineReconciler) deleteAssignedStream(ctx context.Context, pipe *rpcv1alpha1.Pipeline) error {
+	if pipe.Status.AssignedCluster == "" || pipe.Status.AssignedInstance == "" {
+		return nil
+	}
+	ord, ok := ordinalFromPodName(pipe.Status.AssignedInstance, pipe.Status.AssignedCluster)
+	if !ok {
+		return nil
+	}
+	if err := r.Streams.DeleteStream(ctx, clusterPodURL(pipe.Status.AssignedCluster, pipe.Namespace, ord), pipe.Name); err != nil {
+		return fmt.Errorf("delete assigned stream: %w", err)
+	}
+	return nil
+}
+
 // handleClusterFallback runs when spec.clusterRef has been cleared but the
 // pipeline still holds a stream placement. It deletes the stream on its old
 // instance, clears placement, and requeues so the next reconcile falls through
 // to the normal single-pod path. F47 Phase 2b.
 func (r *PipelineReconciler) handleClusterFallback(ctx context.Context, pipe *rpcv1alpha1.Pipeline) (ctrl.Result, error) {
-	if pipe.Status.AssignedCluster != "" && pipe.Status.AssignedInstance != "" {
-		if ord, ok := ordinalFromPodName(pipe.Status.AssignedInstance, pipe.Status.AssignedCluster); ok {
-			url := clusterPodURL(pipe.Status.AssignedCluster, pipe.Namespace, ord)
-			if err := r.Streams.DeleteStream(ctx, url, pipe.Name); err != nil {
-				return ctrl.Result{}, fmt.Errorf("delete stream on fallback: %w", err)
-			}
-		}
+	if err := r.deleteAssignedStream(ctx, pipe); err != nil {
+		return ctrl.Result{}, err
 	}
 	pipe.Status.AssignedCluster = ""
 	pipe.Status.AssignedInstance = ""

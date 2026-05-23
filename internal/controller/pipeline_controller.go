@@ -321,6 +321,12 @@ func (r *PipelineReconciler) handleStopped(
 	ctx context.Context,
 	pipe *rpcv1alpha1.Pipeline,
 ) (ctrl.Result, error) {
+	// F47 Phase 2b: a stopped clustered pipeline must release its stream and
+	// clear its placement, not just delete a pod that never existed.
+	if err := r.deleteAssignedStream(ctx, pipe); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Name:      pipe.Name,
 		Namespace: pipe.Namespace,
@@ -343,9 +349,15 @@ func (r *PipelineReconciler) handleStopped(
 	if condChanged ||
 		pipe.Status.Phase != rpcv1alpha1.PhaseStopped ||
 		pipe.Status.PodName != "" ||
+		pipe.Status.AssignedCluster != "" ||
+		pipe.Status.AssignedInstance != "" ||
+		pipe.Status.StreamID != "" ||
 		pipe.Status.ObservedGeneration != pipe.Generation {
 		pipe.Status.Phase = rpcv1alpha1.PhaseStopped
 		pipe.Status.PodName = ""
+		pipe.Status.AssignedCluster = ""
+		pipe.Status.AssignedInstance = ""
+		pipe.Status.StreamID = ""
 		pipe.Status.ObservedGeneration = pipe.Generation
 		apimeta.SetStatusCondition(&pipe.Status.Conditions, desiredCond)
 		if err := r.Status().Update(ctx, pipe); err != nil {
