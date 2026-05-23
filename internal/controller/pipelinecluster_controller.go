@@ -30,6 +30,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 )
@@ -51,6 +52,8 @@ type PipelineClusterReconciler struct {
 // (connect main config), a headless Service, and a StatefulSet of N streams-mode
 // Redpanda Connect instances. Children are owned by the cluster and GC'd on delete.
 func (r *PipelineClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
+
 	var cluster rpcv1alpha1.PipelineCluster
 	if err := r.Get(ctx, req.NamespacedName, &cluster); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -107,7 +110,7 @@ func (r *PipelineClusterReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return controllerutil.SetControllerReference(&cluster, pm, r.Scheme)
 	}); err != nil {
 		if apimeta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) {
-			// monitoring CRD not installed; skip auto-scrape setup
+			log.V(1).Info("PodMonitor CRD not installed; skipping cluster auto-scrape setup")
 		} else {
 			return ctrl.Result{}, fmt.Errorf("apply podmonitor: %w", err)
 		}
