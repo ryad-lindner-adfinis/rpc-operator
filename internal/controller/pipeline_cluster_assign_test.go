@@ -18,6 +18,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -258,6 +259,41 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: types.NamespacedName{Name: "p11", Namespace: namespace}})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(fake.Has(url, "p11")).To(BeTrue()) // resync re-asserted the stream
+	})
+
+	It("reschedules onto a remaining instance and sets the Rescheduling reason on scale-down", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "c12", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 2},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "c12", namespace, 0)
+		makeReadyClusterPod(ctx, "c12", namespace, 1)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p12", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c12", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		nn := assign("p12")
+		got := &rpcv1alpha1.Pipeline{}
+		Expect(k8sClient.Get(ctx, nn, got)).To(Succeed())
+		Expect(got.Status.AssignedInstance).To(Equal("c12-0")) // ties -> lowest ordinal
+
+		// Scale down: remove the assigned instance's pod.
+		pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "c12-0", Namespace: namespace}}
+		Expect(k8sClient.Delete(ctx, pod)).To(Succeed())
+
+		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(k8sClient.Get(ctx, nn, got)).To(Succeed())
+		Expect(got.Status.AssignedInstance).To(Equal("c12-1"))
+		cond := apimeta.FindStatusCondition(got.Status.Conditions, "Ready")
+		Expect(cond).NotTo(BeNil())
+		Expect(cond.Reason).To(Equal("Rescheduling"))
+		Expect(fake.Has("http://c12-1.c12."+namespace+".svc:4195", "p12")).To(BeTrue())
 	})
 
 	AfterEach(func() {

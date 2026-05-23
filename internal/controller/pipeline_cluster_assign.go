@@ -148,8 +148,12 @@ func (r *PipelineReconciler) handleClusterAssigned(ctx context.Context, pipe *rp
 	}
 
 	instance := fmt.Sprintf("%s-%d", cluster.Name, ordinal)
-	cond := metav1.Condition{Type: "Ready", Status: metav1.ConditionTrue, Reason: "Assigned",
-		Message: fmt.Sprintf("stream running on %s", instance)}
+	reason, msg := "Assigned", fmt.Sprintf("stream running on %s", instance)
+	if pipe.Status.AssignedCluster == cluster.Name && pipe.Status.AssignedInstance != "" && pipe.Status.AssignedInstance != instance {
+		reason = "Rescheduling"
+		msg = fmt.Sprintf("rescheduled from %s to %s", pipe.Status.AssignedInstance, instance)
+	}
+	cond := metav1.Condition{Type: "Ready", Status: metav1.ConditionTrue, Reason: reason, Message: msg}
 	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseRunning, cluster.Name, instance, pipe.Name, cond, resyncInterval)
 }
 
