@@ -128,3 +128,11 @@ func aggregateDistribution(cluster *rpcv1alpha1.PipelineCluster, pods []corev1.P
 		StalePlacements: stale,
 	}
 }
+
+// buildClusterMetricQuery sums a base metric's rate across all instances of a
+// cluster. Instances are a StatefulSet, so pods are exactly "<cluster>-<n>";
+// PromQL regexes are fully anchored, so "etl-[0-9]+" matches "etl-0" but not
+// "etl-small-0". No per-cluster metric label is needed (decision A). F47 Phase 3b.
+func buildClusterMetricQuery(metric, namespace, cluster string) string {
+	return fmt.Sprintf(`sum(rate(%s{namespace=%q,pod=~"%s-[0-9]+"}[1m]))`, metric, namespace, cluster)
+}

@@ -92,3 +92,11 @@ func TestAggregateDistribution(t *testing.T) {
 		t.Errorf("stale wrong: %+v", got.StalePlacements)
 	}
 }
+
+func TestBuildClusterMetricQuery(t *testing.T) {
+	got := buildClusterMetricQuery("output_sent", "rpc-operator-poc", "etl")
+	want := `sum(rate(output_sent{namespace="rpc-operator-poc",pod=~"etl-[0-9]+"}[1m]))`
+	if got != want {
+		t.Errorf("buildClusterMetricQuery:\n got  %q\n want %q", got, want)
+	}
+}
