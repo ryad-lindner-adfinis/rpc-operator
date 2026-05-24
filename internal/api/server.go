@@ -166,6 +166,12 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 		s.authOrAnonymous(s.allowlist(s.handleListNamespacedClusters)))
 	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelineclusters/{name}",
 		s.authOrAnonymous(s.allowlist(s.handleGetCluster)))
+	mux.HandleFunc("POST /api/v1/namespaces/{namespace}/pipelineclusters",
+		s.authIfEnabled(s.allowlist(s.handleCreateCluster)))
+	mux.HandleFunc("PUT /api/v1/namespaces/{namespace}/pipelineclusters/{name}",
+		s.authIfEnabled(s.allowlist(s.handleUpdateCluster)))
+	mux.HandleFunc("DELETE /api/v1/namespaces/{namespace}/pipelineclusters/{name}",
+		s.authIfEnabled(s.allowlist(s.handleDeleteCluster)))
 
 	// Spec-only — no K8s touch, no auth, no allowlist. F42 anonymous-read keeps these open.
 	mux.HandleFunc("POST /api/v1/pipelines/validate", s.handleValidate)

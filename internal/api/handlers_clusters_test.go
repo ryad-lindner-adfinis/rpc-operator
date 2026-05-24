@@ -83,6 +83,87 @@ func TestHandlerGetCluster_NotFound(t *testing.T) {
 }
 
 // compile-time keep-alive for helpers used by later tasks (avoids "unused" until then).
-var _ = bytes.NewReader
 var _ = clusterPod
 var _ = clusteredPipeline
+
+// validClusterBody is a minimal valid PipelineCluster create/update body.
+func validClusterBody(name, ns string, replicas int32) []byte {
+	c := map[string]any{
+		"apiVersion": "rpc.operator.io/v1alpha1",
+		"kind":       "PipelineCluster",
+		"metadata":   map[string]any{"name": name, "namespace": ns},
+		"spec":       map[string]any{"replicas": replicas},
+	}
+	b, _ := json.Marshal(c)
+	return b
+}
+
+func TestHandlerCreateCluster(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/api/v1/namespaces/default/pipelineclusters",
+		"application/json", bytes.NewReader(validClusterBody("etl", "default", 2)))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandlerCreateCluster_NamespaceMismatch(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/api/v1/namespaces/default/pipelineclusters",
+		"application/json", bytes.NewReader(validClusterBody("etl", "other", 2)))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandlerUpdateCluster_Scale(t *testing.T) {
+	ts := newTestServer(t, clusterObj("etl", "default", 2, 2, rpcv1alpha1.ClusterPhaseReady))
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodPut,
+		ts.URL+"/api/v1/namespaces/default/pipelineclusters/etl",
+		bytes.NewReader(validClusterBody("etl", "default", 5)))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PUT: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	var got rpcv1alpha1.PipelineCluster
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Spec.Replicas != 5 {
+		t.Fatalf("expected replicas=5 after scale, got %d", got.Spec.Replicas)
+	}
+}
+
+func TestHandlerDeleteCluster(t *testing.T) {
+	ts := newTestServer(t, clusterObj("etl", "default", 2, 2, rpcv1alpha1.ClusterPhaseReady))
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodDelete,
+		ts.URL+"/api/v1/namespaces/default/pipelineclusters/etl", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("DELETE: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+}
