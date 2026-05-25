@@ -21,6 +21,8 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
+  const clusterRef = editPipeline?.spec.clusterRef
+
   async function handleDeploy() {
     if (!name.trim()) {
       setError('Pipeline name must not be empty.')
@@ -29,7 +31,11 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
     setSaving(true)
     setError(null)
     try {
-      const spec = { rawYAML: text, ...(secretRefs.length > 0 ? { secretRefs } : {}) }
+      const spec = {
+        rawYAML: text,
+        ...(clusterRef ? { clusterRef } : {}),
+        ...(!clusterRef && secretRefs.length > 0 ? { secretRefs } : {}),
+      }
       if (editPipeline) {
         await updatePipeline(namespace, name, spec, editPipeline.metadata.resourceVersion)
       } else {
@@ -77,7 +83,14 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
         </Suspense>
       </div>
 
-      <SecretRefsEditor value={secretRefs} onChange={setSecretRefs} />
+      {clusterRef ? (
+        <div style={secretsDisabledStyle}>
+          Secrets are not available for cluster-assigned pipelines (<code>SecretsUnsupportedInCluster</code>).
+          {secretRefs.length > 0 && <> Clear the {secretRefs.length} existing secret(s) or remove the cluster assignment before deploying.</>}
+        </div>
+      ) : (
+        <SecretRefsEditor value={secretRefs} onChange={setSecretRefs} />
+      )}
 
       {error && (
         <div style={errorBannerStyle}>{error}</div>
@@ -101,6 +114,10 @@ const errorBannerStyle: React.CSSProperties = {
 }
 const backBtnStyle: React.CSSProperties = {
   border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#3b82f6',
+}
+const secretsDisabledStyle: React.CSSProperties = {
+  border: '1px solid #fde68a', borderRadius: 6, padding: 12, marginTop: 12,
+  background: '#fffbeb', color: '#92400e', fontSize: 13, lineHeight: 1.5,
 }
 const deployBtnStyle: React.CSSProperties = {
   padding: '6px 20px', background: '#3b82f6', color: '#fff',
