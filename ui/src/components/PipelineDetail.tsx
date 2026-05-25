@@ -16,11 +16,13 @@ interface Props {
   onStop?: () => void
   /** F45: re-run a Stopped pipeline. Hidden when not provided. */
   onRun?: () => void
+  /** F47 Phase 3c: jump to the assigned cluster's detail. */
+  onOpenCluster?: (name: string) => void
 }
 
 export function PipelineDetail({
   pipeline, readOnly = false, showLogs = true,
-  onEdit, onBack, onStop, onRun,
+  onEdit, onBack, onStop, onRun, onOpenCluster,
 }: Props) {
   const [logs, setLogs] = useState<string[]>([])
   const [wsState, setWsState] = useState<'connecting' | 'open' | 'closed'>('connecting')
@@ -80,10 +82,27 @@ export function PipelineDetail({
 
       {/* Metadata */}
       <div style={sectionStyle}>
-        <div style={metaRowStyle}>
-          <span style={metaLabelStyle}>Pod</span>
-          <code style={{ fontSize: 12 }}>{p.status?.podName ?? '—'}</code>
-        </div>
+        {p.status?.assignedInstance ? (
+          <div style={metaRowStyle}>
+            <span style={metaLabelStyle}>Placement</span>
+            <span style={{ fontSize: 13 }}>
+              Cluster:{' '}
+              {onOpenCluster && p.status.assignedCluster ? (
+                <button onClick={() => onOpenCluster!(p.status!.assignedCluster!)} style={linkBtnStyle}>
+                  {p.status.assignedCluster}
+                </button>
+              ) : (
+                <code style={{ fontSize: 12 }}>{p.status.assignedCluster ?? '—'}</code>
+              )}
+              {' · '}Instance: <code style={{ fontSize: 12 }}>{p.status.assignedInstance}</code>
+            </span>
+          </div>
+        ) : (
+          <div style={metaRowStyle}>
+            <span style={metaLabelStyle}>Pod</span>
+            <code style={{ fontSize: 12 }}>{p.status?.podName ?? '—'}</code>
+          </div>
+        )}
         <div style={metaRowStyle}>
           <span style={metaLabelStyle}>Phase</span>
           <span>{p.status?.phase ?? '—'}</span>
@@ -199,6 +218,10 @@ const thStyle: React.CSSProperties = { padding: '6px 10px', textAlign: 'left', f
 const tdStyle: React.CSSProperties = { padding: '6px 10px' }
 const backBtnStyle: React.CSSProperties = {
   border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#3b82f6',
+}
+const linkBtnStyle: React.CSSProperties = {
+  border: 'none', background: 'none', padding: 0, color: '#3b82f6',
+  textDecoration: 'underline', cursor: 'pointer', fontSize: 13,
 }
 const editBtnStyle: React.CSSProperties = {
   padding: '5px 14px', border: '1px solid #ccc', borderRadius: 4,

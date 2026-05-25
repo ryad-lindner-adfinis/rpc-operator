@@ -163,6 +163,12 @@ export default function App() {
     }
   }
 
+  function openClusterByName(clusterName: string) {
+    setSelectedClusterName(clusterName)
+    setSection('clusters')
+    setClustersView('detail')
+  }
+
   // F44: central entry point for "user wants to authenticate".
   // F20b (OIDC) will replace this body with a PKCE redirect — call sites stay the same.
   function triggerLogin() {
@@ -342,6 +348,7 @@ export default function App() {
                   onBack={() => setView('list')}
                   onStop={readOnly ? undefined : handleStop}
                   onRun={readOnly ? undefined : handleRun}
+                  onOpenCluster={openClusterByName}
                 />
               )}
 
