@@ -272,3 +272,16 @@ func TestHandlerClusterMetrics_PrometheusUnconfigured(t *testing.T) {
 		t.Fatalf("expected 503, got %d", resp.StatusCode)
 	}
 }
+
+func TestHandlerClusterMetrics_ClusterNotFound(t *testing.T) {
+	ts := newTestServerWithPrometheus(t, "http://unused") // no cluster object
+	defer ts.Close()
+	resp, err := http.Get(ts.URL + "/api/v1/namespaces/default/pipelineclusters/missing/metrics?query=throughput")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", resp.StatusCode)
+	}
+}
