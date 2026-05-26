@@ -47,3 +47,6 @@ run.sh
 
 # macOS folder metadata
 .DS_Store
+
+# Superpowers plugin state (worktrees, cache, session data)
+.superpowers/
