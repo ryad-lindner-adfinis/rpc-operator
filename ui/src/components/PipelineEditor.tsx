@@ -24,7 +24,6 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
   const [clusters, setClusters] = useState<PipelineCluster[]>([])
 
   const isRaw = !!spec.rawYAML
-  const inCluster = !!spec.clusterRef
 
   useEffect(() => {
     listClusters(namespace).then(setClusters).catch(() => setClusters([]))
@@ -169,21 +168,10 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
         </div>
       )}
 
-      {inCluster ? (
-        <div style={secretsDisabledStyle}>
-          Secrets are not available for cluster-assigned pipelines. A stream shares the
-          cluster's pod, where secrets are injected as pod-wide environment variables, so
-          per-stream secret isolation is not possible (<code>SecretsUnsupportedInCluster</code>).
-          {spec.secretRefs && spec.secretRefs.length > 0 && (
-            <> Clear the {spec.secretRefs.length} existing secret(s) or switch back to "Own pod" before deploying.</>
-          )}
-        </div>
-      ) : (
-        <SecretRefsEditor
-          value={spec.secretRefs ?? []}
-          onChange={refs => onChange({ ...spec, secretRefs: refs })}
-        />
-      )}
+      <SecretRefsEditor
+        value={spec.secretRefs ?? []}
+        onChange={refs => onChange({ ...spec, secretRefs: refs })}
+      />
     </div>
   )
 }
@@ -205,8 +193,4 @@ const deploymentRowStyle: React.CSSProperties = {
 }
 const selectStyle: React.CSSProperties = {
   padding: '4px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14, marginLeft: 4,
-}
-const secretsDisabledStyle: React.CSSProperties = {
-  border: '1px solid #fde68a', borderRadius: 6, padding: 12, marginTop: 12,
-  background: '#fffbeb', color: '#92400e', fontSize: 13, lineHeight: 1.5,
 }
