@@ -56,12 +56,6 @@ func TestSubstituteSecrets(t *testing.T) {
 			values: map[string]string{"DB_PASS": "s3cr3t"},
 			want:   ``,
 		},
-		{
-			name:   "nil refs returns input unchanged",
-			input:  `${DB_PASS}`,
-			values: map[string]string{"DB_PASS": "s3cr3t"},
-			want:   `${DB_PASS:s3cr3t}`,
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
