@@ -70,3 +70,11 @@ func (f *FakeClient) DropPod(podBaseURL string) {
 	defer f.mu.Unlock()
 	delete(f.streams, podBaseURL)
 }
+
+// StreamBody returns the configYAML stored for a stream (test helper).
+// Returns "" if the stream or pod URL is not found.
+func (f *FakeClient) StreamBody(podBaseURL, streamID string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.streams[podBaseURL][streamID]
+}

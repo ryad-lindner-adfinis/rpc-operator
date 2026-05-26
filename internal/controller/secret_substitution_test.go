@@ -1,7 +1,13 @@
 package controller
 
 import (
+	"context"
 	"testing"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 )
@@ -75,3 +81,72 @@ func TestSubstituteSecretsEmptyRefs(t *testing.T) {
 		t.Errorf("expected unchanged input with nil refs, got %q", got)
 	}
 }
+
+// Ginkgo Describe block — runs inside the envtest suite (suite_test.go).
+var _ = Describe("fetchSecretValues", func() {
+	const namespace = "default"
+	ctx := context.Background()
+
+	It("resolves all refs from a single secret", func() {
+		sec := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "mysecret", Namespace: namespace},
+			Data:       map[string][]byte{"password": []byte("s3cr3t"), "user": []byte("alice")},
+		}
+		Expect(k8sClient.Create(ctx, sec)).To(Succeed())
+		DeferCleanup(func() { _ = k8sClient.Delete(ctx, sec) })
+
+		refs := []rpcv1alpha1.SecretRef{
+			{EnvVar: "DB_PASS", SecretName: "mysecret", Key: "password"},
+			{EnvVar: "DB_USER", SecretName: "mysecret", Key: "user"},
+		}
+		vals, err := fetchSecretValues(ctx, k8sClient, namespace, refs)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(vals).To(Equal(map[string]string{"DB_PASS": "s3cr3t", "DB_USER": "alice"}))
+	})
+
+	It("reads each secret only once when multiple refs use the same secretName", func() {
+		sec := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "shared", Namespace: namespace},
+			Data:       map[string][]byte{"k1": []byte("v1"), "k2": []byte("v2")},
+		}
+		Expect(k8sClient.Create(ctx, sec)).To(Succeed())
+		DeferCleanup(func() { _ = k8sClient.Delete(ctx, sec) })
+
+		refs := []rpcv1alpha1.SecretRef{
+			{EnvVar: "A", SecretName: "shared", Key: "k1"},
+			{EnvVar: "B", SecretName: "shared", Key: "k2"},
+		}
+		vals, err := fetchSecretValues(ctx, k8sClient, namespace, refs)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(vals).To(Equal(map[string]string{"A": "v1", "B": "v2"}))
+	})
+
+	It("returns an error when the secret does not exist", func() {
+		refs := []rpcv1alpha1.SecretRef{
+			{EnvVar: "X", SecretName: "no-such-secret", Key: "k"},
+		}
+		_, err := fetchSecretValues(ctx, k8sClient, namespace, refs)
+		Expect(err).To(MatchError(ContainSubstring("no-such-secret")))
+	})
+
+	It("returns an error when the key is missing in the secret", func() {
+		sec := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "partial", Namespace: namespace},
+			Data:       map[string][]byte{"other": []byte("val")},
+		}
+		Expect(k8sClient.Create(ctx, sec)).To(Succeed())
+		DeferCleanup(func() { _ = k8sClient.Delete(ctx, sec) })
+
+		refs := []rpcv1alpha1.SecretRef{
+			{EnvVar: "MISSING", SecretName: "partial", Key: "no-such-key"},
+		}
+		_, err := fetchSecretValues(ctx, k8sClient, namespace, refs)
+		Expect(err).To(MatchError(ContainSubstring("no-such-key")))
+	})
+
+	It("returns nil for empty refs", func() {
+		vals, err := fetchSecretValues(ctx, k8sClient, namespace, nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(vals).To(BeNil())
+	})
+})
