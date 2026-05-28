@@ -1,0 +1,104 @@
+name: Build & Push Public Image (multi-arch)
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/insidegreen/rpc-operator
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            arch: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            arch: arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute arch-specific tag
+        id: tag
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            base="${GITHUB_REF#refs/tags/}"
+          else
+            base="main"
+          fi
+          echo "value=${base}-${{ matrix.arch }}" >> "${GITHUB_OUTPUT}"
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          push: true
+          provenance: false
+          tags: ${{ env.IMAGE }}:${{ steps.tag.outputs.value }}
+
+  push-manifest:
+    name: Push multi-arch manifest
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Compute final tags
+        id: tags
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            version="${GITHUB_REF#refs/tags/}"
+            echo "base=${version}" >> "${GITHUB_OUTPUT}"
+            echo "final=${{ env.IMAGE }}:${version} ${{ env.IMAGE }}:latest" >> "${GITHUB_OUTPUT}"
+          else
+            short="${GITHUB_SHA:0:7}"
+            echo "base=main" >> "${GITHUB_OUTPUT}"
+            echo "final=${{ env.IMAGE }}:main ${{ env.IMAGE }}:main-${short}" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Create and push manifest
+        run: |
+          set -euo pipefail
+          for tag in ${{ steps.tags.outputs.final }}; do
+            docker buildx imagetools create \
+              -t "${tag}" \
+              "${{ env.IMAGE }}:${{ steps.tags.outputs.base }}-amd64" \
+              "${{ env.IMAGE }}:${{ steps.tags.outputs.base }}-arm64"
+          done
