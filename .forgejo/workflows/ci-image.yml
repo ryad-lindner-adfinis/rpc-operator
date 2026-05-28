@@ -26,5 +26,5 @@ jobs:
           docker_file: .forgejo/Dockerfile.ci
           push: true
           credentials: |
-            git.home.arpa=${{ github.actor }}:${{ secrets.LOCAL_PUSH_TOKEN }}
-          destinations: git.home.arpa/tom/rpc-operator/ci:latest
+            forgejo.thecloudroute.com=${{ github.actor }}:${{ secrets.PUSH_PACKAGE_TOKEN }}
+          destinations: forgejo.thecloudroute.com/tom/rpc-operator/ci:latest

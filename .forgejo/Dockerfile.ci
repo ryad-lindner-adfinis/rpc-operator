@@ -1,9 +1,12 @@
 # CI build image for rpc-operator.
 # Contains all build tools pre-installed so CI runs require no downloads.
 #
-# Build (on the Pi, for linux/arm64):
-#   docker build -f .forgejo/Dockerfile.ci -t git.home.arpa/tom/rpc-operator/ci:latest .
-#   docker push git.home.arpa/tom/rpc-operator/ci:latest
+# Build via Forgejo Actions: Trigger workflow "Build CI Image" (workflow_dispatch).
+#
+# Manual fallback (on the Pi, for linux/arm64):
+#   docker build -f .forgejo/Dockerfile.ci \
+#     -t forgejo.thecloudroute.com/tom/rpc-operator/ci:latest .
+#   docker push forgejo.thecloudroute.com/tom/rpc-operator/ci:latest
 #
 # Rebuild whenever tool versions change (Go, golangci-lint, controller-gen, K8s).
 
