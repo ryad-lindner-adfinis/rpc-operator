@@ -103,6 +103,14 @@ func TestBuildProjectNATSStatefulSet_PVCStorage(t *testing.T) {
 	}
 }
 
+func TestBuildProjectNATSStatefulSet_DefaultStorage(t *testing.T) {
+	ss := buildProjectNATSStatefulSet("orders", "", 1, resource.Quantity{})
+	got := ss.Spec.VolumeClaimTemplates[0].Spec.Resources.Requests["storage"]
+	if got.String() != "10Gi" {
+		t.Errorf("default storage: got %s want 10Gi", got.String())
+	}
+}
+
 func TestBuildProjectNATSStatefulSet_DefaultImage(t *testing.T) {
 	ss := buildProjectNATSStatefulSet("orders", "", 1, resource.MustParse("1Gi"))
 	if ss.Spec.Template.Spec.Containers[0].Image != natsImageDefault {
