@@ -1,0 +1,24 @@
+# Sample PipelineProject. The controller provisions one PipelineCluster
+# (`hello-project-cluster`) and one NATS JetStream StatefulSet
+# (`hello-project-nats`) in the same namespace. Routes are declared here for
+# illustration but Phase 1 does not yet provision their JetStream streams.
+apiVersion: rpc.operator.io/v1alpha1
+kind: PipelineProject
+metadata:
+  name: hello-project
+  labels:
+    app.kubernetes.io/name: rpc-operator
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  description: "Demo project — provisions a single-instance cluster and NATS bus."
+  cluster:
+    instances: 1
+  nats:
+    replicas: 1
+    storage: 1Gi
+    storageReclaimPolicy: Retain
+    retention:
+      maxAge: "24h"
+      maxBytes: "1Gi"
+  # Routes are stored but inert in F50.1 — see F50.2 for wiring + filtering.
+  routes: []
