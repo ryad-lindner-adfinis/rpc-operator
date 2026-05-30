@@ -1,0 +1,445 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: pipelineprojects.rpc.operator.io
+spec:
+  group: rpc.operator.io
+  names:
+    kind: PipelineProject
+    listKind: PipelineProjectList
+    plural: pipelineprojects
+    shortNames:
+    - ppr
+    singular: pipelineproject
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.cluster.name
+      name: Cluster
+      type: string
+    - jsonPath: .status.cluster.ready
+      name: ClusterReady
+      type: string
+    - jsonPath: .status.nats.ready
+      name: NATSReady
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: PipelineProject is the Schema for the pipelineprojects API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              PipelineProjectSpec defines the desired state of a PipelineProject — a
+              user-facing grouping of Pipelines backed by a system-managed PipelineCluster
+              and NATS JetStream StatefulSet. Phase 1 only provisions the runtime; routes
+              are accepted in the spec but not yet acted on.
+            properties:
+              cluster:
+                description: Cluster sizes the underlying PipelineCluster. All fields
+                  optional.
+                properties:
+                  instances:
+                    default: 1
+                    description: Instances is the number of streams-mode Connect instances.
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  resources:
+                    description: Resources sets CPU/memory requests and limits per
+                      instance container.
+                    properties:
+                      claims:
+                        description: |-
+                          Claims lists the names of resources, defined in spec.resourceClaims,
+                          that are used by this container.
+
+                          This field depends on the
+                          DynamicResourceAllocation feature gate.
+
+                          This field is immutable. It can only be set for containers.
+                        items:
+                          description: ResourceClaim references one entry in PodSpec.ResourceClaims.
+                          properties:
+                            name:
+                              description: |-
+                                Name must match the name of one entry in pod.spec.resourceClaims of
+                                the Pod where this field is used. It makes that resource available
+                                inside a container.
+                              type: string
+                            request:
+                              description: |-
+                                Request is the name chosen for a request in the referenced claim.
+                                If empty, everything from the claim is made available, otherwise
+                                only the result of this request.
+                              type: string
+                          required:
+                          - name
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      limits:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Limits describes the maximum amount of compute resources allowed.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                      requests:
+                        additionalProperties:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        description: |-
+                          Requests describes the minimum amount of compute resources required.
+                          If Requests is omitted for a container, it defaults to Limits if that is explicitly specified,
+                          otherwise to an implementation-defined value. Requests cannot exceed Limits.
+                          More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+                        type: object
+                    type: object
+                type: object
+              description:
+                description: Description is an optional human-readable description.
+                type: string
+              nats:
+                description: NATS sizes and configures the per-Project JetStream StatefulSet.
+                properties:
+                  replicas:
+                    default: 1
+                    description: |-
+                      Replicas is the number of NATS server replicas. v1 supports 1; ≥3 is
+                      accepted as config but only smoke-tested.
+                    format: int32
+                    minimum: 1
+                    type: integer
+                  retention:
+                    description: |-
+                      Retention sets the default JetStream stream retention applied to every
+                      route's stream. Per-route overrides are honored in Phase 2.
+                    properties:
+                      maxAge:
+                        description: MaxAge is the TTL after which messages are purged.
+                        type: string
+                      maxBytes:
+                        anyOf:
+                        - type: integer
+                        - type: string
+                        description: MaxBytes caps the stream's total on-disk size.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      maxMsgs:
+                        description: MaxMsgs caps the stream's message count.
+                        format: int64
+                        type: integer
+                    type: object
+                  storage:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: Storage is the per-replica JetStream file storage
+                      PVC size.
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
+                  storageReclaimPolicy:
+                    default: Retain
+                    description: |-
+                      StorageReclaimPolicy controls PVC handling on Project deletion.
+                      "Retain" (default) keeps PVCs; "Delete" removes them.
+                    enum:
+                    - Retain
+                    - Delete
+                    type: string
+                type: object
+              routes:
+                description: |-
+                  Routes is the declarative routing table wiring Pipelines via NATS subjects.
+                  Phase 1 stores the field but does not process it. Phase 2 implements
+                  stream provisioning and Pipeline I/O rewriting from this table.
+                items:
+                  description: |-
+                    ProjectRoute is one declarative wire in the routing table. Phase 1 stores
+                    but does not act on routes; Phase 2 provisions NATS streams and rewrites
+                    affected Pipelines' I/O.
+                  properties:
+                    from:
+                      description: |-
+                        From is the producer Pipeline. Must reference a Pipeline in this
+                        project with matching spec.projectRef once Phase 2 ships.
+                      type: string
+                    name:
+                      description: Name is unique within the Project. DNS-1123 label.
+                      maxLength: 63
+                      pattern: ^[a-z]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                    retention:
+                      description: |-
+                        Retention is an optional override of the Project's default retention
+                        for this route's stream.
+                      properties:
+                        maxAge:
+                          description: MaxAge is the TTL after which messages are
+                            purged.
+                          type: string
+                        maxBytes:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: MaxBytes caps the stream's total on-disk size.
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        maxMsgs:
+                          description: MaxMsgs caps the stream's message count.
+                          format: int64
+                          type: integer
+                      type: object
+                    to:
+                      description: |-
+                        To is the list of consumer Pipelines, optionally each with a Bloblang
+                        predicate (Phase 2).
+                      items:
+                        description: ProjectRouteTarget is one consumer of a route,
+                          optionally filtered.
+                        properties:
+                          pipeline:
+                            description: Pipeline is the target Pipeline name in the
+                              same namespace.
+                            type: string
+                          when:
+                            description: |-
+                              When is an optional Bloblang predicate evaluated consumer-side
+                              (Phase 2). Empty = always deliver.
+                            type: string
+                        required:
+                        - pipeline
+                        type: object
+                      minItems: 1
+                      type: array
+                  required:
+                  - from
+                  - name
+                  - to
+                  type: object
+                type: array
+            type: object
+          status:
+            description: PipelineProjectStatus describes the observed state.
+            properties:
+              cluster:
+                description: Cluster reports the managed PipelineCluster's readiness.
+                properties:
+                  name:
+                    description: Name is the child resource name.
+                    type: string
+                  ready:
+                    description: Ready is the number of ready replicas/instances.
+                    format: int32
+                    type: integer
+                  total:
+                    description: Total is the desired number of replicas/instances.
+                    format: int32
+                    type: integer
+                type: object
+              conditions:
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              nats:
+                description: NATS reports the managed NATS StatefulSet's readiness.
+                properties:
+                  name:
+                    description: Name is the child resource name.
+                    type: string
+                  ready:
+                    description: Ready is the number of ready replicas/instances.
+                    format: int32
+                    type: integer
+                  total:
+                    description: Total is the desired number of replicas/instances.
+                    format: int32
+                    type: integer
+                type: object
+              observedGeneration:
+                description: ObservedGeneration is the .metadata.generation this status
+                  reflects.
+                format: int64
+                type: integer
+              phase:
+                description: Phase is the high-level lifecycle stage.
+                enum:
+                - Provisioning
+                - Ready
+                - Degraded
+                - Deleting
+                type: string
+              routes:
+                description: Routes mirrors per-route status (populated by Phase 2).
+                items:
+                  description: ProjectRouteStatus captures per-route runtime state
+                    (Phase 2).
+                  properties:
+                    conditions:
+                      items:
+                        description: Condition contains details for one aspect of
+                          the current state of this API Resource.
+                        properties:
+                          lastTransitionTime:
+                            description: |-
+                              lastTransitionTime is the last time the condition transitioned from one status to another.
+                              This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                            format: date-time
+                            type: string
+                          message:
+                            description: |-
+                              message is a human readable message indicating details about the transition.
+                              This may be an empty string.
+                            maxLength: 32768
+                            type: string
+                          observedGeneration:
+                            description: |-
+                              observedGeneration represents the .metadata.generation that the condition was set based upon.
+                              For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                              with respect to the current state of the instance.
+                            format: int64
+                            minimum: 0
+                            type: integer
+                          reason:
+                            description: |-
+                              reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                              Producers of specific condition types may define expected values and meanings for this field,
+                              and whether the values are considered a guaranteed API.
+                              The value should be a CamelCase string.
+                              This field may not be empty.
+                            maxLength: 1024
+                            minLength: 1
+                            pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                            type: string
+                          status:
+                            description: status of the condition, one of True, False,
+                              Unknown.
+                            enum:
+                            - "True"
+                            - "False"
+                            - Unknown
+                            type: string
+                          type:
+                            description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                            maxLength: 316
+                            pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                            type: string
+                        required:
+                        - lastTransitionTime
+                        - message
+                        - reason
+                        - status
+                        - type
+                        type: object
+                      type: array
+                    name:
+                      type: string
+                    phase:
+                      type: string
+                    stream:
+                      type: string
+                    subject:
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
