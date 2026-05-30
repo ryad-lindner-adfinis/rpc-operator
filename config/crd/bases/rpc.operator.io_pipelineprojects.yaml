@@ -363,10 +363,14 @@ spec:
               routes:
                 description: Routes mirrors per-route status (populated by Phase 2).
                 items:
-                  description: ProjectRouteStatus captures per-route runtime state
-                    (Phase 2).
+                  description: |-
+                    ProjectRouteStatus captures per-route runtime state. Populated by Phase 2 once
+                    the operator manages the route's JetStream stream and consumer wiring; left
+                    empty in Phase 1.
                   properties:
                     conditions:
+                      description: Conditions report per-route problems (e.g., stream
+                        creation failures).
                       items:
                         description: Condition contains details for one aspect of
                           the current state of this API Resource.
@@ -423,13 +427,26 @@ spec:
                         - type
                         type: object
                       type: array
+                      x-kubernetes-list-map-keys:
+                      - type
+                      x-kubernetes-list-type: map
                     name:
+                      description: Name matches the route's spec.routes[].name and
+                        is the join key.
                       type: string
                     phase:
+                      description: Phase is the route's lifecycle state. Phase 2 defines
+                        the value set.
                       type: string
                     stream:
+                      description: |-
+                        Stream is the JetStream stream name backing this route
+                        (rpc-<project>-<route>).
                       type: string
                     subject:
+                      description: |-
+                        Subject is the NATS subject backing this route's stream
+                        (rpc.<project>.<route>). Empty until the operator has created the stream.
                       type: string
                   required:
                   - name

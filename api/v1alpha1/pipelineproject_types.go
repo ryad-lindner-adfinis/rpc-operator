@@ -6,6 +6,12 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 */
 
 package v1alpha1
@@ -185,12 +191,28 @@ type ProjectChildStatus struct {
 	Total int32 `json:"total,omitempty"`
 }
 
-// ProjectRouteStatus captures per-route runtime state (Phase 2).
+// ProjectRouteStatus captures per-route runtime state. Populated by Phase 2 once
+// the operator manages the route's JetStream stream and consumer wiring; left
+// empty in Phase 1.
 type ProjectRouteStatus struct {
-	Name       string             `json:"name"`
-	Subject    string             `json:"subject,omitempty"`
-	Stream     string             `json:"stream,omitempty"`
-	Phase      string             `json:"phase,omitempty"`
+	// Name matches the route's spec.routes[].name and is the join key.
+	Name string `json:"name"`
+
+	// Subject is the NATS subject backing this route's stream
+	// (rpc.<project>.<route>). Empty until the operator has created the stream.
+	Subject string `json:"subject,omitempty"`
+
+	// Stream is the JetStream stream name backing this route
+	// (rpc-<project>-<route>).
+	Stream string `json:"stream,omitempty"`
+
+	// Phase is the route's lifecycle state. Phase 2 defines the value set.
+	Phase string `json:"phase,omitempty"`
+
+	// Conditions report per-route problems (e.g., stream creation failures).
+	// +listType=map
+	// +listMapKey=type
+	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
