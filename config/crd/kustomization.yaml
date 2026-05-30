@@ -4,6 +4,7 @@
 resources:
 - bases/rpc.operator.io_pipelines.yaml
 - bases/rpc.operator.io_pipelineclusters.yaml
+- bases/rpc.operator.io_pipelineprojects.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:
