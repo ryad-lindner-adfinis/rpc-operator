@@ -114,6 +114,24 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 lint-config: golangci-lint ## Verify golangci-lint linter configuration
 	"$(GOLANGCI_LINT)" config verify
 
+##@ Docs
+
+.PHONY: docs-serve
+docs-serve: ## Serve user docs locally (venv + mkdocs serve).
+	@command -v python3.12 >/dev/null 2>&1 || { echo "Error: Python 3.12 required"; exit 1; }
+	@test -d .venv-docs || python3.12 -m venv .venv-docs
+	@. .venv-docs/bin/activate && pip install --quiet -r requirements-docs.txt && mkdocs serve
+
+.PHONY: docs-build
+docs-build: ## Build user docs (venv + mkdocs build --strict).
+	@command -v python3.12 >/dev/null 2>&1 || { echo "Error: Python 3.12 required"; exit 1; }
+	@test -d .venv-docs || python3.12 -m venv .venv-docs
+	@. .venv-docs/bin/activate && pip install --quiet -r requirements-docs.txt && mkdocs build --strict
+
+.PHONY: docs-check-reference
+docs-check-reference: ## Check CRD reference drift (compare Go fields vs markdown docs).
+	go run ./hack/docs-check-reference.go
+
 ##@ UI
 
 .PHONY: ui-build
