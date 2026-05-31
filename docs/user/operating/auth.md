@@ -27,9 +27,11 @@ Users log in by pasting a Kubernetes service account token. The operator forward
 
 ### Create a user token
 
+Replace `<pipeline-namespace>` with the namespace where your pipelines will run (e.g. `rpc-operator-poc` in the getting-started guide).
+
 ```bash
 # 1. Create a ServiceAccount for the user
-kubectl -n rpc-operator-poc create serviceaccount alice
+kubectl -n <pipeline-namespace> create serviceaccount alice
 
 # 2. Bind RBAC — pipeline editor role
 kubectl apply -f - <<'EOF'
@@ -37,7 +39,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: rpc-pipeline-editor
-  namespace: rpc-operator-poc
+  namespace: <pipeline-namespace>
 rules:
 - apiGroups: ["rpc.operator.io"]
   resources: ["pipelines", "pipelines/status"]
@@ -47,16 +49,19 @@ rules:
   verbs: ["get","list","watch"]
 EOF
 
-kubectl -n rpc-operator-poc create rolebinding alice-pipelines \
-  --role=rpc-pipeline-editor --serviceaccount=rpc-operator-poc:alice
+kubectl -n <pipeline-namespace> create rolebinding alice-pipelines \
+  --role=rpc-pipeline-editor --serviceaccount=<pipeline-namespace>:alice
 
 # 3. Optional: allow the namespace dropdown in the UI to list namespaces
 kubectl create clusterrolebinding alice-ns-list \
-  --clusterrole=view --serviceaccount=rpc-operator-poc:alice
+  --clusterrole=view --serviceaccount=<pipeline-namespace>:alice
 
 # 4. Mint a short-lived token
-kubectl -n rpc-operator-poc create token alice --duration=8h
+kubectl -n <pipeline-namespace> create token alice --duration=8h
 ```
+
+!!! warning "Broad cluster access"
+    The `view` ClusterRole grants read access to resources across **all namespaces**. If least-privilege is required, create a custom ClusterRole granting only `namespaces` list/get instead.
 
 Paste the token into the login screen or pass it as `Authorization: Bearer <token>` for API calls.
 
@@ -70,11 +75,13 @@ Mode C adds unauthenticated read access on top of Mode B. Writes (create, update
 ```bash
 # Anonymous reads only:
 helm install rpc-operator ./charts/rpc-operator \
+  -n rpc-operator-system --create-namespace \
   --set auth.enabled=true \
   --set anonymous.read.enabled=true
 
 # Anonymous reads + live log stream:
 helm install rpc-operator ./charts/rpc-operator \
+  -n rpc-operator-system --create-namespace \
   --set auth.enabled=true \
   --set anonymous.read.enabled=true \
   --set anonymous.logs.enabled=true

@@ -76,7 +76,7 @@ This page summarises all values in `charts/rpc-operator/values.yaml`. For the ca
 | `resources.limits.memory` | `256Mi` | Memory limit for the operator pod |
 | `resources.requests.cpu` | `50m` | CPU request for the operator pod |
 | `resources.requests.memory` | `64Mi` | Memory request for the operator pod |
-| `nodeSelector` | `kubernetes.io/arch: arm64` | Node selector labels. Remove once amd64 builds ship. |
+| `nodeSelector` | `kubernetes.io/arch: arm64` | Pins to arm64 nodes (matches the dev cluster). Remove or update to match your cluster architecture. |
 | `tolerations` | `[]` | Pod tolerations |
 | `affinity` | `{}` | Pod affinity rules |
 | `podAnnotations` | `{}` | Annotations on the operator pod |

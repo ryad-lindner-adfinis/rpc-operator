@@ -19,7 +19,7 @@ OIDC SSO adds a "Log in with SSO" button to the UI's login screen. It is additiv
 
 Your Kubernetes apiserver must be started with:
 
-```
+```text
 --oidc-issuer-url=https://keycloak.example.com/realms/platform
 --oidc-client-id=rpc-operator
 ```
