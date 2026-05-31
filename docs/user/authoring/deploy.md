@@ -32,12 +32,22 @@ The operator detects the change and **replaces the pod** — there is a brief in
 
 ## Force a restart without changing YAML
 
-Add or update an annotation to trigger reconciliation:
+The operator only restarts the pod when the spec content changes (rawYAML, image, or secretRefs). To force a restart without touching those fields, use the stop-and-resume cycle:
 
 ```bash
-kubectl -n rpc-operator-poc annotate pipelines.rpc.operator.io my-pipeline \
-  rpc.operator.io/restart-at="$(date -u +%Y-%m-%dT%H:%M:%SZ)" --overwrite
+# Stop the pipeline (deletes the pod)
+kubectl -n rpc-operator-poc patch pipelines.rpc.operator.io my-pipeline \
+  --type=merge -p '{"spec":{"stopped":true}}'
+
+# Wait for Stopped phase
+kubectl -n rpc-operator-poc get pipelines.rpc.operator.io my-pipeline -o jsonpath='{.status.phase}'
+
+# Resume (creates a fresh pod)
+kubectl -n rpc-operator-poc patch pipelines.rpc.operator.io my-pipeline \
+  --type=merge -p '{"spec":{"stopped":false}}'
 ```
+
+See [Stop and re-run](stop-rerun.md) for details.
 
 ## Delete a pipeline
 

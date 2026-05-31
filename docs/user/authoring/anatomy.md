@@ -78,6 +78,7 @@ After applying, the operator populates `status`:
 | `status.podName` | Name of the pipeline pod (pod mode only) |
 | `status.assignedCluster` | PipelineCluster name (stream mode only) |
 | `status.assignedInstance` | Cluster pod hosting the stream (stream mode only) |
+| `status.streamID` | Deployed stream ID, equal to the pipeline name (stream mode only) |
 
 ```bash
 kubectl -n rpc-operator-poc get pipelines.rpc.operator.io kafka-to-stdout -o yaml
