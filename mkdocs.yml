@@ -1,23 +1,24 @@
 site_name: RPC Operator
-site_description: Kubernetes operator for Redpanda Connect pipelines
+site_description: User documentation for the Redpanda Connect Operator.
 site_url: https://insidegreen.github.io/rpc-operator/
 repo_url: https://forgejo.thecloudroute.com/tom/rpc-operator
-repo_name: rpc-operator
-
+edit_uri: _edit/main/docs/user/
 docs_dir: docs/user
 site_dir: site
+strict: true
 
 theme:
   name: material
   features:
-    - navigation.instant
+    - navigation.tabs
     - navigation.sections
-    - navigation.tracking
+    - navigation.instant
     - navigation.top
-    - toc.follow
-    - content.code.copy
     - search.suggest
     - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - toc.follow
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
@@ -33,73 +34,65 @@ theme:
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
-  logo: assets/images/logo.png
-  favicon: assets/images/favicon.ico
 
 markdown_extensions:
   - admonition
   - attr_list
-  - codehilite
-  - pymdownx.arithmatex
-  - pymdownx.betterem
-  - pymdownx.caret
-  - pymdownx.critic
+  - md_in_html
   - pymdownx.details
-  - pymdownx.emoji
-  - pymdownx.highlight
-  - pymdownx.inlinehilite
-  - pymdownx.keys
-  - pymdownx.mark
-  - pymdownx.smartsymbols
-  - pymdownx.superfences
-  - pymdownx.tabbed
-  - pymdownx.tasklist
-  - pymdownx.tilde
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:mermaid2.fence_mermaid_custom
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
   - toc:
       permalink: true
-  - tables
 
 plugins:
   - search
   - mermaid2
 
 nav:
-  - Home: index.md
+  - Introduction:
+      - What is the RPC Operator?: index.md
+      - Who should read what?: audience.md
+      - Architecture at a glance: architecture.md
   - Getting Started:
-      - Install the Operator: getting-started/install.md
-      - Configure a Cluster: getting-started/configure-cluster.md
-      - Deploy Your First Pipeline: getting-started/first-pipeline.md
-  - Operating:
-      - Deployment: operating/deployment.md
-      - Authentication: operating/authentication.md
-      - Monitoring: operating/monitoring.md
-      - Logging: operating/logging.md
-      - Network Policies: operating/network-policies.md
-  - Authoring:
-      - Pipeline Basics: authoring/basics.md
-      - Input Configuration: authoring/input.md
-      - Processors: authoring/processors.md
-      - Output Configuration: authoring/output.md
-      - Error Handling: authoring/error-handling.md
-  - Clusters:
-      - PipelineCluster Overview: clusters/overview.md
-      - Deployment: clusters/deployment.md
-      - Scaling: clusters/scaling.md
-      - Monitoring: clusters/monitoring.md
+      - Prerequisites: getting-started/prerequisites.md
+      - Install via Helm: getting-started/install.md
+      - Deploy your first Pipeline: getting-started/first-pipeline.md
+      - Verify and next steps: getting-started/verify.md
+  - Operating the Operator:
+      - Helm values reference: operating/helm-values.md
+      - Authentication modes: operating/auth.md
+      - OIDC SSO: operating/oidc.md
+      - Namespace allowlist: operating/namespace-allowlist.md
+      - Pull secrets and image registry: operating/pull-secrets.md
+      - Prometheus integration: operating/prometheus.md
+      - Upgrades and uninstall: operating/upgrade-uninstall.md
+  - Authoring Pipelines:
+      - Pipeline anatomy: authoring/anatomy.md
+      - Secrets via secretKeyRef: authoring/secrets.md
+      - Deploying and redeploying: authoring/deploy.md
+      - Stop and re-run: authoring/stop-rerun.md
+  - PipelineClusters & Streams:
+      - When to use a PipelineCluster: clusters/when-to-use.md
+      - Defining a PipelineCluster: clusters/defining.md
+      - Running pipelines on a cluster: clusters/cluster-ref.md
+      - Migrating between clusters: clusters/migrating.md
   - Operations:
-      - Common Tasks: operations/common-tasks.md
+      - Reading logs: operations/logs.md
+      - Metrics and PodMonitor: operations/metrics.md
       - Troubleshooting: operations/troubleshooting.md
-      - Performance Tuning: operations/performance-tuning.md
-      - Upgrades: operations/upgrades.md
   - Reference:
       - Pipeline CRD: reference/pipeline-crd.md
       - PipelineCluster CRD: reference/pipelinecluster-crd.md
-
-extra:
-  version:
-    provider: mike
-  social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/insidegreen/rpc-operator
+      - Helm values: reference/helm-values.md
+      - Operator CLI flags: reference/cli-flags.md
 
 copyright: Copyright 2026 Inside Green

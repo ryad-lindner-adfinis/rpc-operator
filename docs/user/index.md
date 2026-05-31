@@ -20,8 +20,8 @@ The RPC Operator is a Kubernetes operator for managing Redpanda Connect pipeline
 
 ## For Platform Administrators
 
-See the [Operating](operating/deployment.md) section for deployment, authentication, monitoring, and cluster configuration.
+See the [Operating the Operator](operating/helm-values.md) section for deployment, authentication, monitoring, and cluster configuration.
 
 ## For Pipeline Authors
 
-See the [Authoring](authoring/basics.md) section for pipeline configuration, processors, input/output connectors, and error handling.
+See the [Authoring Pipelines](authoring/anatomy.md) section for pipeline configuration, processors, input/output connectors, and error handling.

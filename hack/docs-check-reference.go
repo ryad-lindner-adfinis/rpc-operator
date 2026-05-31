@@ -71,8 +71,11 @@ func collectGoFieldsFromSource(filepath string, typeName string) []string {
 			for _, field := range structType.Fields.List {
 				for range field.Names {
 					jsonTag := extractJSONTag(field)
-					if jsonTag != "" && !strings.Contains(jsonTag, ",") {
-						fields = append(fields, jsonTag)
+					if jsonTag != "" {
+						name := strings.SplitN(jsonTag, ",", 2)[0]
+						if name != "" && name != "-" {
+							fields = append(fields, name)
+						}
 					}
 				}
 			}

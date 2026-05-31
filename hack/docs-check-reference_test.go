@@ -4,16 +4,17 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"sort"
+	"strings"
 	"testing"
 )
 
 func TestCollectGoFieldsExtractsJSONTags(t *testing.T) {
-	// Mock Go code with struct definition
 	code := `
 package main
 type PipelineSpec struct {
-	RawYAML string ` + "`json:\"rawYAML\"`" + `
-	Enabled bool   ` + "`json:\"enabled\"`" + `
+	RawYAML string ` + "`json:\"rawYAML,omitempty\"`" + `
+	Enabled bool   ` + "`json:\"enabled,omitempty\"`" + `
 	Hidden  string ` + "`json:\"-\"`" + `
 }
 `
@@ -39,8 +40,11 @@ type PipelineSpec struct {
 			for _, field := range structType.Fields.List {
 				for range field.Names {
 					jsonTag := extractJSONTag(field)
-					if jsonTag != "" && jsonTag != "-" {
-						fields = append(fields, jsonTag)
+					if jsonTag != "" {
+						name := strings.SplitN(jsonTag, ",", 2)[0]
+						if name != "" && name != "-" {
+							fields = append(fields, name)
+						}
 					}
 				}
 			}
@@ -48,7 +52,7 @@ type PipelineSpec struct {
 	}
 
 	if len(fields) != 2 {
-		t.Errorf("Expected 2 fields, got %d: %v", len(fields), fields)
+		t.Errorf("Expected 2 fields (rawYAML, enabled), got %d: %v", len(fields), fields)
 	}
 }
 
@@ -111,33 +115,26 @@ func TestDiffReportsExtraDocHeading(t *testing.T) {
 
 // Helper functions
 func extractHeadingsFromMarkdown(markdown string) []string {
-	lines := []rune{}
-	for _, r := range markdown {
-		lines = append(lines, r)
-	}
-
 	var headings []string
 	inFieldSection := false
 
-	for _, line := range []string(markdown[:]) {
+	for _, line := range strings.Split(markdown, "\n") {
 		if len(line) == 0 {
 			continue
 		}
-		if line[0:2] == "##" && line[0:4] != "###" {
-			inFieldSection = len(line) >= 6 && (line[3:] == "Spec" || line[3:] == "Status")
+		if strings.HasPrefix(line, "##") && !strings.HasPrefix(line, "###") {
+			inFieldSection = line == "## Spec" || line == "## Status"
 		}
-		if inFieldSection && len(line) >= 4 && line[0:4] == "### " {
-			heading := line[4:]
+		if inFieldSection && strings.HasPrefix(line, "### ") {
+			heading := strings.TrimPrefix(line, "### ")
 			headings = append(headings, heading)
 		}
 	}
 
+	sort.Strings(headings)
 	return headings
 }
 
 func containsString(haystack, needle string) bool {
-	for _, line := range []rune(haystack) {
-		_ = line
-	}
-	return len(haystack) > 0 && len(needle) > 0
+	return strings.Contains(haystack, needle)
 }
