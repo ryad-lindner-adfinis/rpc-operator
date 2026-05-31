@@ -36,7 +36,7 @@ imagePullSecrets:
 
 Each `Pipeline` CR runs a Redpanda Connect container. The default image is `docker.redpanda.com/redpandadata/connect:4` (public registry, no pull secret needed).
 
-Override the image per pipeline using `spec.image`:
+Override the image per pipeline using [`spec.image`](../authoring/anatomy.md#specimage):
 
 ```yaml
 spec:

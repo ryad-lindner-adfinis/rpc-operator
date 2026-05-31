@@ -26,8 +26,8 @@ kubectl -n <pipeline-namespace> logs <pipeline-pod> --previous
 ```
 
 Common causes:
-- **Invalid YAML in `spec.rawYAML`:** Redpanda Connect rejects the config at startup. The log will contain `failed to init config`.
-- **Missing environment variable:** a `${ENV_VAR}` reference in `rawYAML` has no corresponding `secretRef` entry.
+- **Invalid YAML in `spec.rawYAML`:** Redpanda Connect rejects the config at startup. The log will contain `failed to init config`. See [Pipeline anatomy](../authoring/anatomy.md) for `rawYAML` syntax.
+- **Missing environment variable:** a `${ENV_VAR}` reference in `rawYAML` has no corresponding `secretRef` entry. See [Secrets via secretKeyRef](../authoring/secrets.md).
 - **Network errors:** the input or output cannot connect to its target (Kafka, HTTP, etc.).
 
 ## Pipeline exits immediately (Stopped, not Failed)
