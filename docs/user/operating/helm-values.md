@@ -12,7 +12,7 @@ This page summarises all values in `charts/rpc-operator/values.yaml`. For the ca
 | `image.repository` | `ghcr.io/insidegreen/rpc-operator` | Container image repository |
 | `image.tag` | `""` (= Chart.appVersion) | Image tag; `main` for nightly builds |
 | `image.pullPolicy` | `IfNotPresent` | Kubernetes pull policy |
-| `imagePullSecrets` | `[]` | List of pull secret names |
+| `imagePullSecrets` | `[]` | Pull secret names (only needed for private/air-gapped registries) |
 | `replicaCount` | `1` | Operator replica count |
 
 ## Operator configuration

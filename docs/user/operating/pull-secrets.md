@@ -1,42 +1,15 @@
-# Pull secrets and image registry
+# Image registry
 
 > **Audience:** Platform admins
 > **Prerequisites:** [Install via Helm](../getting-started/install.md)
 
-The RPC Operator image and the Redpanda Connect pipeline image may live in private registries that require authentication.
+The default operator image (`ghcr.io/insidegreen/rpc-operator`) and the default pipeline image (`docker.redpanda.com/redpandadata/connect:4`) are both public — no pull secret is needed for a standard install.
 
-## Operator image pull secret
+This page covers the two cases where authentication is required: custom pipeline images from private registries and air-gapped clusters.
 
-The default operator image is hosted on GitHub Container Registry (`ghcr.io`). Create a pull secret in the operator namespace before installing:
+## Pipeline pod image from a private registry
 
-```bash
-kubectl create secret docker-registry ghcr-pull \
-  --docker-server=ghcr.io \
-  --docker-username=<your-github-username> \
-  --docker-password=<your-PAT> \
-  -n rpc-operator-system
-```
-
-Reference it in the Helm values:
-
-```bash
-helm install rpc-operator ./charts/rpc-operator \
-  -n rpc-operator-system --create-namespace \
-  --set 'imagePullSecrets[0].name=ghcr-pull'
-```
-
-Or in a values file:
-
-```yaml
-imagePullSecrets:
-  - name: ghcr-pull
-```
-
-## Pipeline pod image
-
-Each `Pipeline` CR runs a Redpanda Connect container. The default image is `docker.redpanda.com/redpandadata/connect:4` (public registry, no pull secret needed).
-
-Override the image per pipeline using [`spec.image`](../authoring/anatomy.md#specimage):
+Each `Pipeline` CR runs a Redpanda Connect container. Override the image per pipeline using [`spec.image`](../authoring/anatomy.md#specimage):
 
 ```yaml
 spec:
@@ -51,6 +24,6 @@ If the pipeline image is in a private registry, create a pull secret in the **pi
 
 For air-gapped environments:
 
-1. Mirror `docker.redpanda.com/redpandadata/connect:4` and the operator image to your internal registry
-2. Set `image.repository` in Helm values to your internal registry path
+1. Mirror `docker.redpanda.com/redpandadata/connect:4` and `ghcr.io/insidegreen/rpc-operator` to your internal registry
+2. Set `image.repository` in Helm values to your internal registry path; add `imagePullSecrets` if your registry requires authentication
 3. Override `spec.image` in each Pipeline CR to point to the mirrored Redpanda Connect image

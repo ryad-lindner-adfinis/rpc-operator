@@ -73,7 +73,7 @@ nav:
       - Authentication modes: operating/auth.md
       - OIDC SSO: operating/oidc.md
       - Namespace allowlist: operating/namespace-allowlist.md
-      - Pull secrets and image registry: operating/pull-secrets.md
+      - Image registry: operating/pull-secrets.md
       - Prometheus integration: operating/prometheus.md
       - Upgrades and uninstall: operating/upgrade-uninstall.md
   - Authoring Pipelines:

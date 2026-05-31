@@ -15,7 +15,7 @@ You install and operate the RPC Operator for other teams. You control the Kubern
 | Choosing an auth model | [Authentication modes](operating/auth.md) |
 | Setting up OIDC SSO | [OIDC SSO](operating/oidc.md) |
 | Restricting namespaces | [Namespace allowlist](operating/namespace-allowlist.md) |
-| Private image registries | [Pull secrets](operating/pull-secrets.md) |
+| Private or air-gapped image registries | [Image registry](operating/pull-secrets.md) |
 | Connecting Prometheus | [Prometheus integration](operating/prometheus.md) |
 | Upgrading or uninstalling | [Upgrades and uninstall](operating/upgrade-uninstall.md) |
 | All Helm knobs | [Helm values reference](operating/helm-values.md) |

@@ -26,8 +26,6 @@ Use this checklist to confirm that your installation is production-ready before 
 
 - [ ] **Prometheus integration is working** (if applicable) — see [Prometheus integration](../operating/prometheus.md)
 
-- [ ] **Image pull secret is in place** — see [Pull secrets](../operating/pull-secrets.md)
-
 ## Pipeline author checklist
 
 - [ ] **You can apply a pipeline manifest** — try the [hello-pipeline](first-pipeline.md) example

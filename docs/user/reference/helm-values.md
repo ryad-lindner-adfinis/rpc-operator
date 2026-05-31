@@ -12,7 +12,7 @@ Complete reference for all values in `charts/rpc-operator/values.yaml`. For cont
 | `image.repository` | string | `ghcr.io/insidegreen/rpc-operator` | Operator image repository |
 | `image.tag` | string | `""` | Image tag; empty = Chart.appVersion |
 | `image.pullPolicy` | string | `IfNotPresent` | Pull policy |
-| `imagePullSecrets` | list | `[]` | Pull secret names |
+| `imagePullSecrets` | list | `[]` | Pull secret names (only needed for private/air-gapped registries) |
 | `replicaCount` | integer | `1` | Operator pod replica count |
 | `operator.prometheusUrl` | string | `""` | Prometheus base URL for graph |
 | `operator.watchNamespaces` | list | `[]` | Namespace allowlist (empty = cluster-wide) |
