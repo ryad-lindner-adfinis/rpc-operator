@@ -1,27 +1,33 @@
-# RPC Operator User Documentation
+# What is the RPC Operator?
 
-Welcome to the RPC Operator documentation. This guide covers installation, configuration, pipeline authoring, and operations.
+> **Audience:** Both
+> **Prerequisites:** none
 
-## Quick Links
+The RPC Operator is a Kubernetes operator for running [Redpanda Connect](https://docs.redpanda.com/redpanda-connect/) data pipelines as native Kubernetes resources. You define a pipeline in YAML, apply it with `kubectl`, and the operator takes care of running, monitoring, and restarting the pipeline pod for you.
 
-- [Install the Operator](getting-started/install.md)
-- [Deploy Your First Pipeline](getting-started/first-pipeline.md)
-- [Pipeline CRD Reference](reference/pipeline-crd.md)
-- [PipelineCluster CRD Reference](reference/pipelinecluster-crd.md)
+## What it provides
 
-## What is the RPC Operator?
+- **CRD-based pipelines** — each `Pipeline` CR maps to one dedicated pod running a Redpanda Connect process
+- **PipelineCluster mode** — share a pool of long-running Redpanda Connect instances across many lightweight streams
+- **Namespace-scoped access control** — limit the operator to specific namespaces via the allowlist
+- **Bearer-token and OIDC authentication** — protect the embedded API with Kubernetes-native tokens or an external identity provider
+- **Prometheus metrics** — per-pipeline throughput and error-rate metrics via a `PodMonitor`
 
-The RPC Operator is a Kubernetes operator for managing Redpanda Connect pipelines. It provides:
+## Primary use cases
 
-- **Simple deployment** of data pipelines as Kubernetes resources
-- **Native K8s integration** via Custom Resource Definitions (CRDs)
-- **Multi-cluster support** via PipelineCluster for distributed stream processing
-- **Built-in monitoring** with Prometheus integration
+| Use case | What you use |
+|---|---|
+| One-off or low-volume pipeline | `Pipeline` CR with `spec.rawYAML` |
+| Many short-lived streams sharing infrastructure | `PipelineCluster` + `spec.clusterRef` |
+| Platform team deploying for multiple data teams | Namespace allowlist + RBAC per team |
 
-## For Platform Administrators
+## Not in scope (v1)
 
-See the [Operating the Operator](operating/helm-values.md) section for deployment, authentication, monitoring, and cluster configuration.
+- The visual pipeline editor (UI) — covered separately once it reaches GA
+- `PipelineProject` grouping — in design, not yet shipped
+- Structured `spec.input` / `spec.processors` / `spec.output` fields — use `spec.rawYAML` instead
 
-## For Pipeline Authors
+## Where to go next
 
-See the [Authoring Pipelines](authoring/anatomy.md) section for pipeline configuration, processors, input/output connectors, and error handling.
+- [Who should read what?](audience.md) — pick the right documentation track for your role
+- [Prerequisites](getting-started/prerequisites.md) → [Install via Helm](getting-started/install.md) — if you want to get started immediately
