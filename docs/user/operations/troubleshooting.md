@@ -66,5 +66,5 @@ A CRD field was added to Go code but not documented in the reference. Add a `###
 
 ## Getting help
 
-- Check [forgejo.thecloudroute.com/tom/rpc-operator/issues](https://forgejo.thecloudroute.com/tom/rpc-operator/issues) for known issues
+- Check [github.com/insidegreen/rpc-operator/issues](https://github.com/insidegreen/rpc-operator/issues) for known issues
 - File a bug at the same location

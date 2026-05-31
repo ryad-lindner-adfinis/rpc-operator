@@ -19,18 +19,18 @@ helm install rpc-operator ./charts/rpc-operator \
 This installs with the default values:
 
 - **Auth:** enabled (Mode B — Bearer token)
-- **Image:** pulled from the Forgejo registry (requires a pull secret; see below)
+- **Image:** pulled from GitHub Container Registry (requires a pull secret; see below)
 - **Namespaces:** operator watches all namespaces
 - **Prometheus:** not connected
 
 ## Image pull secret
 
-The default image is hosted on a private Forgejo registry. Create a pull secret before installing:
+The default image is hosted on GitHub Container Registry (`ghcr.io`). Create a pull secret before installing:
 
 ```bash
-kubectl create secret docker-registry forgejo-pull \
-  --docker-server=forgejo.thecloudroute.com \
-  --docker-username=<your-username> \
+kubectl create secret docker-registry ghcr-pull \
+  --docker-server=ghcr.io \
+  --docker-username=<your-github-username> \
   --docker-password=<your-PAT> \
   -n rpc-operator-system
 ```
@@ -40,7 +40,7 @@ Then include it in the install:
 ```bash
 helm install rpc-operator ./charts/rpc-operator \
   -n rpc-operator-system --create-namespace \
-  --set 'imagePullSecrets[0].name=forgejo-pull' \
+  --set 'imagePullSecrets[0].name=ghcr-pull' \
   --set image.tag=main
 ```
 

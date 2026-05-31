@@ -7,12 +7,12 @@ The RPC Operator image and the Redpanda Connect pipeline image may live in priva
 
 ## Operator image pull secret
 
-The default operator image is in a private Forgejo registry. Create a pull secret in the operator namespace before installing:
+The default operator image is hosted on GitHub Container Registry (`ghcr.io`). Create a pull secret in the operator namespace before installing:
 
 ```bash
-kubectl create secret docker-registry forgejo-pull \
-  --docker-server=forgejo.thecloudroute.com \
-  --docker-username=<your-username> \
+kubectl create secret docker-registry ghcr-pull \
+  --docker-server=ghcr.io \
+  --docker-username=<your-github-username> \
   --docker-password=<your-PAT> \
   -n rpc-operator-system
 ```
@@ -22,14 +22,14 @@ Reference it in the Helm values:
 ```bash
 helm install rpc-operator ./charts/rpc-operator \
   -n rpc-operator-system --create-namespace \
-  --set 'imagePullSecrets[0].name=forgejo-pull'
+  --set 'imagePullSecrets[0].name=ghcr-pull'
 ```
 
 Or in a values file:
 
 ```yaml
 imagePullSecrets:
-  - name: forgejo-pull
+  - name: ghcr-pull
 ```
 
 ## Pipeline pod image

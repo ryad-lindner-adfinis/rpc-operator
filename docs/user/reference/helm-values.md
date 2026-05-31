@@ -9,7 +9,7 @@ Complete reference for all values in `charts/rpc-operator/values.yaml`. For cont
 
 | Value | Type | Default | Description |
 |---|---|---|---|
-| `image.repository` | string | `forgejo.thecloudroute.com/tom/rpc-operator` | Operator image repository |
+| `image.repository` | string | `ghcr.io/insidegreen/rpc-operator` | Operator image repository |
 | `image.tag` | string | `""` | Image tag; empty = Chart.appVersion |
 | `image.pullPolicy` | string | `IfNotPresent` | Pull policy |
 | `imagePullSecrets` | list | `[]` | Pull secret names |
