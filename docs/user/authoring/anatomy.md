@@ -83,3 +83,5 @@ After applying, the operator populates `status`:
 ```bash
 kubectl -n rpc-operator-poc get pipelines.rpc.operator.io kafka-to-stdout -o yaml
 ```
+
+For the complete field reference including all constraints and status values, see [Pipeline CRD](../reference/pipeline-crd.md).

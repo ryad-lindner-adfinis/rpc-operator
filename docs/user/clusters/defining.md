@@ -82,3 +82,7 @@ spec:
 | `status.readyReplicas` | Number of instances currently Ready |
 
 A cluster is `Degraded` when one or more instances are not Ready (pod crashlooping, pending, etc.).
+
+## Next steps
+
+- [Running pipelines on a cluster](cluster-ref.md) — deploy a pipeline as a stream on this cluster

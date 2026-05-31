@@ -84,3 +84,7 @@ spec:
 
 !!! warning
     If the referenced Secret does not exist in the namespace, the pipeline pod will fail to start with a `CreateContainerConfigError`. Check `kubectl -n <ns> describe pod <pipeline-pod>` for details.
+
+## Next steps
+
+- [Deploying and redeploying](deploy.md) — apply the manifest and update pipelines
