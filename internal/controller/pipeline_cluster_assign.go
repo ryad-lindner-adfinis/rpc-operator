@@ -99,14 +99,20 @@ func (r *PipelineReconciler) loadByOrdinal(ctx context.Context, clusterName, nam
 	return load, nil
 }
 
-// handleClusterAssigned deploys a clusterRef pipeline as a stream into its cluster.
+// handleClusterAssigned deploys a pipeline as a stream into the named cluster.
 // Phase 2a: validation + teardown of pod-mode leftovers + schedule + deploy + placement.
-func (r *PipelineReconciler) handleClusterAssigned(ctx context.Context, pipe *rpcv1alpha1.Pipeline) (ctrl.Result, error) {
+// clusterName is the target PipelineCluster (spec.clusterRef for F47, or the
+// project's managed cluster for F50.2). When ioPlan is non-nil, the rendered
+// stream config is rewritten per the project's routes before secret
+// substitution and PUT /streams. The Pipeline CR is never mutated.
+func (r *PipelineReconciler) handleClusterAssigned(
+	ctx context.Context, pipe *rpcv1alpha1.Pipeline, clusterName string, ioPlan *render.ProjectIOPlan,
+) (ctrl.Result, error) {
 	var cluster rpcv1alpha1.PipelineCluster
-	if err := r.Get(ctx, client.ObjectKey{Name: pipe.Spec.ClusterRef, Namespace: pipe.Namespace}, &cluster); err != nil {
+	if err := r.Get(ctx, client.ObjectKey{Name: clusterName, Namespace: pipe.Namespace}, &cluster); err != nil {
 		if apierrors.IsNotFound(err) {
 			return r.markClusterFailed(ctx, pipe, "ClusterNotFound",
-				fmt.Sprintf("PipelineCluster %q not found", pipe.Spec.ClusterRef))
+				fmt.Sprintf("PipelineCluster %q not found", clusterName))
 		}
 		return ctrl.Result{}, err
 	}
@@ -140,6 +146,12 @@ func (r *PipelineReconciler) handleClusterAssigned(ctx context.Context, pipe *rp
 	body, err := render.RenderStreamConfig(&pipe.Spec)
 	if err != nil {
 		return r.markClusterFailed(ctx, pipe, "RenderError", err.Error())
+	}
+	if ioPlan != nil {
+		body, err = render.ApplyProjectIO(body, *ioPlan)
+		if err != nil {
+			return r.markClusterFailed(ctx, pipe, "RewriteError", err.Error())
+		}
 	}
 	if len(pipe.Spec.SecretRefs) > 0 {
 		values, err := fetchSecretValues(ctx, r.Client, pipe.Namespace, pipe.Spec.SecretRefs)
