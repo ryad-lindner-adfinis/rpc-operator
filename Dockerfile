@@ -9,7 +9,7 @@ RUN npm run build
 # land at /internal/api/static in the container, not /ui/dist.
 
 # --- Build manager binary ---
-FROM golang:1.25 AS builder
+FROM golang:1.26 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 
