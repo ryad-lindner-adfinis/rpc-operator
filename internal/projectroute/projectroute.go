@@ -19,8 +19,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/redpanda-data/benthos/v4/public/bloblang"
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
+	"github.com/redpanda-data/benthos/v4/public/bloblang"
 )
 
 // StreamName is the JetStream stream backing one route: rpc-<project>-<route>.
