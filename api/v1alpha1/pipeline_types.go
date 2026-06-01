@@ -104,6 +104,21 @@ type PipelineSpec struct {
 	// own pod. Empty = one-pod model (unchanged). F47 Phase 2.
 	// +optional
 	ClusterRef string `json:"clusterRef,omitempty"`
+
+	// ProjectRef opts this pipeline into a PipelineProject. Mutually exclusive
+	// with clusterRef. When set, the operator places the pipeline onto the
+	// project's managed PipelineCluster (<project>-cluster) and rewrites its
+	// input/output per the project's routing table at stream-render time.
+	// The Pipeline CR itself is never mutated. F50.2.
+	// +optional
+	ProjectRef *ProjectRef `json:"projectRef,omitempty"`
+}
+
+// ProjectRef references a PipelineProject in the same namespace.
+type ProjectRef struct {
+	// Name is the PipelineProject name in this namespace.
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
 }
 
 // PipelinePhase reports the high-level lifecycle stage of a Pipeline's pod.

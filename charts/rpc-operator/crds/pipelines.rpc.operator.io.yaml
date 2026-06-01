@@ -120,6 +120,20 @@ spec:
                   - type
                   type: object
                 type: array
+              projectRef:
+                description: |-
+                  ProjectRef opts this pipeline into a PipelineProject. Mutually exclusive
+                  with clusterRef. When set, the operator places the pipeline onto the
+                  project's managed PipelineCluster (<project>-cluster) and rewrites its
+                  input/output per the project's routing table at stream-render time.
+                  The Pipeline CR itself is never mutated. F50.2.
+                properties:
+                  name:
+                    description: Name is the PipelineProject name in this namespace.
+                    type: string
+                required:
+                - name
+                type: object
               rawYAML:
                 description: |-
                   RawYAML holds a complete Redpanda Connect config in native YAML format.
