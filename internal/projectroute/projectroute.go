@@ -16,7 +16,10 @@ package projectroute
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
+	"github.com/redpanda-data/benthos/v4/public/bloblang"
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 )
 
@@ -132,4 +135,183 @@ func PlanFor(project *rpcv1alpha1.PipelineProject, namespace, pipeline string) I
 // IsEmpty reports whether the plan requires no rewriting (standalone pipeline).
 func (p IOPlan) IsEmpty() bool {
 	return len(p.OutgoingSubjects) == 0 && len(p.Incoming) == 0
+}
+
+// ProjectError is a single validation failure with the spec's exact message.
+type ProjectError struct {
+	Route   string // route name, or "" for project-level errors
+	Message string
+}
+
+func (e ProjectError) Error() string { return e.Message }
+
+// PipelineView is the minimal pipeline shape ValidateProject needs: its name,
+// the project it claims (spec.projectRef.name, "" if none), and whether it
+// defines user input/output (for the I/O-conflict rule).
+type PipelineView struct {
+	Name        string
+	ProjectName string
+	HasInput    bool
+	HasOutput   bool
+}
+
+// ValidateProject checks a project's route table against the live pipelines in
+// its namespace. pipelines is keyed by pipeline name. Returns every violation
+// (not just the first) so callers can surface a complete picture. Messages are
+// verbatim from the spec's validation table.
+func ValidateProject(project *rpcv1alpha1.PipelineProject, pipelines map[string]PipelineView) []ProjectError {
+	var errs []ProjectError
+	routes := project.Spec.Routes
+
+	// Rule: route name uniqueness.
+	seen := map[string]bool{}
+	for i := range routes {
+		n := routes[i].Name
+		if seen[n] {
+			errs = append(errs, ProjectError{Route: n, Message: fmt.Sprintf("route name %q is not unique", n)})
+		}
+		seen[n] = true
+	}
+
+	inProject := func(name string) bool {
+		pv, ok := pipelines[name]
+		return ok && pv.ProjectName == project.Name
+	}
+
+	for i := range routes {
+		r := &routes[i]
+
+		// Rule: from must reference a pipeline in this project.
+		if r.From == "" || !inProject(r.From) {
+			errs = append(errs, ProjectError{Route: r.Name,
+				Message: fmt.Sprintf("route '%s' from='%s': pipeline not found in project", r.Name, r.From)})
+		}
+		// Rule: each to[i] must reference a pipeline in this project.
+		for j := range r.To {
+			t := &r.To[j]
+			if t.Pipeline == "" || !inProject(t.Pipeline) {
+				errs = append(errs, ProjectError{Route: r.Name,
+					Message: fmt.Sprintf("route '%s' to[%d]='%s': pipeline not found in project", r.Name, j, t.Pipeline)})
+			}
+			// Rule: predicate must parse as Bloblang.
+			if t.When != "" {
+				if err := parsePredicate(t.When); err != nil {
+					errs = append(errs, ProjectError{Route: r.Name,
+						Message: fmt.Sprintf("route '%s' to[%d].when: %s", r.Name, j, err.Error())})
+				}
+			}
+		}
+	}
+
+	// Rule: I/O conflict. A producer must not define user output; a consumer
+	// must not define user input.
+	for name, pv := range pipelines {
+		if pv.ProjectName != project.Name {
+			continue
+		}
+		if IsProducer(routes, name) && pv.HasOutput {
+			errs = append(errs, ProjectError{
+				Message: "output is managed by the project's routes; remove it"})
+		}
+		if IsConsumer(routes, name) && pv.HasInput {
+			errs = append(errs, ProjectError{
+				Message: "input is managed by the project's routes; remove it"})
+		}
+	}
+
+	// Rule: no cycles.
+	if cyc := findCycle(routes); len(cyc) > 0 {
+		errs = append(errs, ProjectError{
+			Message: fmt.Sprintf("route graph contains a cycle: %s", strings.Join(cyc, " → "))})
+	}
+
+	// Stable order for deterministic status/tests.
+	sort.SliceStable(errs, func(a, b int) bool { return errs[a].Message < errs[b].Message })
+	return errs
+}
+
+// parsePredicate wraps the predicate in the mapping the operator will generate
+// and parses the whole thing, so syntax errors surface exactly as they would in
+// the deployed pipeline.
+func parsePredicate(when string) error {
+	_, err := bloblang.Parse(fmt.Sprintf("root = if !(%s) { deleted() } else { this }", when))
+	return err
+}
+
+// findCycle returns the node sequence of the first cycle found (e.g. ["A","B","A"]),
+// or nil. Edges run from route.From to each route.To[].Pipeline. DFS with a
+// recursion stack; deterministic via sorted node iteration.
+func findCycle(routes []rpcv1alpha1.ProjectRoute) []string {
+	adj := map[string][]string{}
+	nodeSet := map[string]bool{}
+	for i := range routes {
+		f := routes[i].From
+		nodeSet[f] = true
+		for j := range routes[i].To {
+			to := routes[i].To[j].Pipeline
+			adj[f] = append(adj[f], to)
+			nodeSet[to] = true
+		}
+	}
+	nodes := make([]string, 0, len(nodeSet))
+	for n := range nodeSet {
+		nodes = append(nodes, n)
+	}
+	sort.Strings(nodes)
+	for k := range adj {
+		sort.Strings(adj[k])
+	}
+
+	const (
+		white = 0
+		gray  = 1
+		black = 2
+	)
+	color := map[string]int{}
+	var path []string
+	var dfs func(n string) []string
+	dfs = func(n string) []string {
+		color[n] = gray
+		path = append(path, n)
+		for _, m := range adj[n] {
+			switch color[m] {
+			case gray:
+				for idx := range path {
+					if path[idx] == m {
+						return append(append([]string{}, path[idx:]...), m)
+					}
+				}
+			case white:
+				if c := dfs(m); c != nil {
+					return c
+				}
+			}
+		}
+		path = path[:len(path)-1]
+		color[n] = black
+		return nil
+	}
+	for _, n := range nodes {
+		if color[n] == white {
+			if c := dfs(n); c != nil {
+				return c
+			}
+		}
+	}
+	return nil
+}
+
+// RouteStatuses builds the status.routes slice for a project, marking each route
+// with its subject + stream (controllers overwrite Phase with provisioning results).
+func RouteStatuses(project *rpcv1alpha1.PipelineProject) []rpcv1alpha1.ProjectRouteStatus {
+	out := make([]rpcv1alpha1.ProjectRouteStatus, 0, len(project.Spec.Routes))
+	for i := range project.Spec.Routes {
+		r := &project.Spec.Routes[i]
+		out = append(out, rpcv1alpha1.ProjectRouteStatus{
+			Name:    r.Name,
+			Subject: Subject(project.Name, r.Name),
+			Stream:  StreamName(project.Name, r.Name),
+		})
+	}
+	return out
 }
