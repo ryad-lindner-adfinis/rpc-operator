@@ -1,6 +1,7 @@
 import type {
   CatalogComponent, ClusterDistribution, MetricQuery, MetricsResponse,
-  Pipeline, PipelineCluster, PipelineClusterSpec, PipelineSpec, ValidateResponse,
+  Pipeline, PipelineCluster, PipelineClusterSpec, PipelineProject, PipelineProjectSpec,
+  PipelineSpec, ValidateResponse,
 } from './types'
 import { getToken, clearToken } from './auth'
 
@@ -248,4 +249,50 @@ export async function updateCluster(
     metadata: { name, namespace, ...(resourceVersion ? { resourceVersion } : {}) },
     spec,
   })
+}
+
+// --- F50.3: PipelineProject client ---
+
+export async function listProjects(namespace: string): Promise<PipelineProject[]> {
+  const data = await request<{ items: PipelineProject[] }>(
+    'GET', `/namespaces/${namespace}/pipelineprojects`,
+  )
+  return data.items ?? []
+}
+
+export async function getProject(namespace: string, name: string): Promise<PipelineProject> {
+  return request<PipelineProject>('GET', `/namespaces/${namespace}/pipelineprojects/${name}`)
+}
+
+export async function createProject(
+  namespace: string,
+  name: string,
+  spec: PipelineProjectSpec,
+): Promise<PipelineProject> {
+  return request<PipelineProject>('POST', `/namespaces/${namespace}/pipelineprojects`, {
+    apiVersion: 'rpc.operator.io/v1alpha1',
+    kind: 'PipelineProject',
+    metadata: { name, namespace },
+    spec,
+  })
+}
+
+// PUT replaces .spec wholesale (mirror updateCluster): read via getProject,
+// mutate the field, then send the full spec back.
+export async function updateProject(
+  namespace: string,
+  name: string,
+  spec: PipelineProjectSpec,
+  resourceVersion?: string,
+): Promise<PipelineProject> {
+  return request<PipelineProject>('PUT', `/namespaces/${namespace}/pipelineprojects/${name}`, {
+    apiVersion: 'rpc.operator.io/v1alpha1',
+    kind: 'PipelineProject',
+    metadata: { name, namespace, ...(resourceVersion ? { resourceVersion } : {}) },
+    spec,
+  })
+}
+
+export async function deleteProject(namespace: string, name: string): Promise<void> {
+  await request<void>('DELETE', `/namespaces/${namespace}/pipelineprojects/${name}`)
 }
