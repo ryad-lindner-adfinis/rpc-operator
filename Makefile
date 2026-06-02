@@ -140,6 +140,10 @@ ui-build: ## Build React UI (output: internal/api/static/).
 ui-dev: ## Start Vite dev server (proxies /api → localhost:8082).
 	cd ui && npm run dev
 
+.PHONY: ui-test
+ui-test: ## Run the UI unit/component tests (vitest).
+	npm --prefix ui test
+
 ##@ Build
 
 .PHONY: build
