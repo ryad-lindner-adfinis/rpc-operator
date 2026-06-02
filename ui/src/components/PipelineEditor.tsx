@@ -1,8 +1,9 @@
 import { Suspense, lazy, useEffect, useState } from 'react'
 import { ComponentBox } from './ComponentBox'
 import { SecretRefsEditor } from './SecretRefsEditor'
-import { listClusters, renderPipelineYAML } from '../api'
-import type { CatalogComponent, ComponentSpec, PipelineCluster, PipelineSpec } from '../types'
+import { listClusters, listProjects, renderPipelineYAML } from '../api'
+import type { CatalogComponent, ComponentSpec, PipelineCluster, PipelineProject, PipelineSpec } from '../types'
+import { roleOf, outputManaged, inputManaged } from '../projectRole'
 
 const MonacoEditor = lazy(() =>
   import('@monaco-editor/react').then(m => ({ default: m.default })),
@@ -22,12 +23,19 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
   const [yamlLoading, setYamlLoading] = useState(false)
   const [yamlError, setYamlError] = useState<string>()
   const [clusters, setClusters] = useState<PipelineCluster[]>([])
+  const [projects, setProjects] = useState<PipelineProject[]>([])
 
   const isRaw = !!spec.rawYAML
 
   useEffect(() => {
     listClusters(namespace).then(setClusters).catch(() => setClusters([]))
+    listProjects(namespace).then(setProjects).catch(() => setProjects([]))
   }, [namespace])
+
+  const selectedProject = projects.find(p => p.metadata.name === spec.projectRef)
+  const role = spec.projectRef ? roleOf(selectedProject?.spec.routes ?? [], name) : 'standalone'
+  const outManaged = !!spec.projectRef && outputManaged(role)
+  const inManaged = !!spec.projectRef && inputManaged(role)
 
   async function switchToYaml() {
     if (!isRaw && (!spec.input || !spec.output)) {
@@ -79,7 +87,20 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
       const { clusterRef: _omit, ...rest } = spec
       onChange(rest)
     } else {
-      onChange({ ...spec, clusterRef: value })
+      // Mutually exclusive with projectRef — drop it.
+      const { projectRef: _drop, ...rest } = spec
+      onChange({ ...rest, clusterRef: value })
+    }
+  }
+
+  function handleProjectChange(value: string) {
+    if (value === '') {
+      const { projectRef: _omit, ...rest } = spec
+      onChange(rest)
+    } else {
+      // Mutually exclusive with clusterRef — drop it.
+      const { clusterRef: _drop, ...rest } = spec
+      onChange({ ...rest, projectRef: value })
     }
   }
 
@@ -89,15 +110,29 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
       <div style={deploymentRowStyle}>
         <label style={{ fontSize: 14 }}>
           Run on&nbsp;
-          <select value={spec.clusterRef ?? ''} onChange={e => handleClusterChange(e.target.value)} style={selectStyle}>
+          <select value={spec.clusterRef ?? ''} disabled={!!spec.projectRef}
+                  onChange={e => handleClusterChange(e.target.value)} style={selectStyle}>
             <option value="">Own pod (default)</option>
             {clusters.map(c => (
               <option key={c.metadata.name} value={c.metadata.name}>{c.metadata.name}</option>
             ))}
           </select>
         </label>
-        {clusters.length === 0 && (
-          <span style={{ fontSize: 12, color: '#9ca3af' }}>no clusters in this namespace</span>
+        <label style={{ fontSize: 14 }}>
+          Project&nbsp;
+          <select value={spec.projectRef ?? ''} disabled={!!spec.clusterRef}
+                  onChange={e => handleProjectChange(e.target.value)} style={selectStyle}>
+            <option value="">None</option>
+            {projects.map(p => (
+              <option key={p.metadata.name} value={p.metadata.name}>{p.metadata.name}</option>
+            ))}
+          </select>
+        </label>
+        {spec.projectRef && (
+          <span style={roleBadgeStyle(role)}>role: {role}</span>
+        )}
+        {clusters.length === 0 && projects.length === 0 && (
+          <span style={{ fontSize: 12, color: '#9ca3af' }}>no clusters or projects in this namespace</span>
         )}
       </div>
 
@@ -118,13 +153,17 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
 
       {mode === 'visual' && !isRaw && (
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-          <ComponentBox
-            title="Input"
-            category="inputs"
-            items={spec.input ? [spec.input] : []}
-            catalogCache={catalogCache}
-            onChange={setInput}
-          />
+          {inManaged ? (
+            <ManagedSection side="Input" role={role} project={spec.projectRef!} />
+          ) : (
+            <ComponentBox
+              title="Input"
+              category="inputs"
+              items={spec.input ? [spec.input] : []}
+              catalogCache={catalogCache}
+              onChange={setInput}
+            />
+          )}
           <ComponentBox
             title="Processors"
             category="processors"
@@ -133,13 +172,17 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
             catalogCache={catalogCache}
             onChange={setProcessors}
           />
-          <ComponentBox
-            title="Output"
-            category="outputs"
-            items={spec.output ? [spec.output] : []}
-            catalogCache={catalogCache}
-            onChange={setOutput}
-          />
+          {outManaged ? (
+            <ManagedSection side="Output" role={role} project={spec.projectRef!} />
+          ) : (
+            <ComponentBox
+              title="Output"
+              category="outputs"
+              items={spec.output ? [spec.output] : []}
+              catalogCache={catalogCache}
+              onChange={setOutput}
+            />
+          )}
         </div>
       )}
 
@@ -193,4 +236,32 @@ const deploymentRowStyle: React.CSSProperties = {
 }
 const selectStyle: React.CSSProperties = {
   padding: '4px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14, marginLeft: 4,
+}
+
+function ManagedSection({ side, role, project }: { side: 'Input' | 'Output'; role: string; project: string }) {
+  return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{side}</div>
+      <div style={managedBannerStyle}>
+        <strong>Managed by project “{project}”.</strong>
+        <div style={{ marginTop: 4, color: '#15803d' }}>
+          The operator injects this {side.toLowerCase()} ({role} pipeline) as a <code>nats_jetstream</code> block at deploy time.
+          Use the project’s tactical map to change routing.
+        </div>
+      </div>
+    </div>
+  )
+}
+const managedBannerStyle: React.CSSProperties = {
+  border: '1px dashed #22c55e', background: '#f0fdf4', borderRadius: 6,
+  padding: 12, fontSize: 12, color: '#166534',
+}
+function roleBadgeStyle(role: string): React.CSSProperties {
+  const map: Record<string, string> = {
+    source: '#dbeafe', middle: '#ede9fe', sink: '#dcfce7', standalone: '#f3f4f6',
+  }
+  return {
+    background: map[role] ?? '#f3f4f6', color: '#374151',
+    padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600,
+  }
 }
