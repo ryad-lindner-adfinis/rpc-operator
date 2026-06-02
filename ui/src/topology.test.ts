@@ -21,6 +21,23 @@ describe('buildTopology', () => {
     expect(alertEdge?.predicate).toBe('this.level == "high"')
   })
 
+  it('adds projectRef members not referenced by any route as standalone nodes', () => {
+    const t = buildTopology(proj([
+      { name: 'fan', from: 'ingest', to: [{ pipeline: 'warehouse' }] },
+    ]), ['ingest', 'warehouse', 'lonely'])
+    const pipes = t.nodes.filter(n => n.kind === 'pipeline').map(n => n.id).sort()
+    // ingest/warehouse already exist via the route; lonely is added standalone, no dupes.
+    expect(pipes).toEqual(['ingest', 'lonely', 'warehouse'])
+    // the standalone member has no edges.
+    expect(t.edges.some(e => e.from === 'lonely' || e.to === 'lonely')).toBe(false)
+  })
+
+  it('renders members even when the project has no routes at all', () => {
+    const t = buildTopology(proj([]), ['solo'])
+    expect(t.nodes).toHaveLength(1)
+    expect(t.nodes[0]).toMatchObject({ id: 'solo', kind: 'pipeline' })
+  })
+
   it('deduplicates a pipeline that is both a source and a target', () => {
     const t = buildTopology(proj([
       { name: 'a', from: 'p1', to: [{ pipeline: 'p2' }] },

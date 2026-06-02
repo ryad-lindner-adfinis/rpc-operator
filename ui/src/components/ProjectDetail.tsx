@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getProject, updateProject } from '../api'
+import { getProject, listPipelines, updateProject } from '../api'
 import type { PipelineProject, ProjectRoute } from '../types'
 import { buildTopology, computeLayout, type TopoNode } from '../topology'
 import { TopologyCanvas } from './TopologyCanvas'
@@ -20,6 +20,7 @@ const streamOf = (project: string, route: string) => `rpc-${project}-${route}`
 
 export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipeline, onAddPipeline }: Props) {
   const [project, setProject] = useState<PipelineProject>()
+  const [members, setMembers] = useState<string[]>([])
   const [error, setError] = useState<string>()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // null = creating a new route, a route = editing, undefined = drawer closed.
@@ -29,6 +30,10 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
     getProject(namespace, name)
       .then(p => { setProject(p); setError(undefined) })
       .catch(e => setError((e as Error).message))
+    // Pipelines attached via projectRef — shown on the map even when unrouted.
+    listPipelines(namespace)
+      .then(ps => setMembers(ps.filter(p => p.spec.projectRef?.name === name).map(p => p.metadata.name)))
+      .catch(() => setMembers([]))
   }, [namespace, name])
 
   useEffect(() => {
@@ -46,7 +51,7 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
   if (!project) return <p style={{ color: '#888' }}>Loading project…</p>
 
   const routes = project.spec.routes ?? []
-  const topo = computeLayout(buildTopology(project))
+  const topo = computeLayout(buildTopology(project, members))
   const selectedNode = topo.nodes.find(n => n.id === selectedId) ?? null
   const pipelineNames = topo.nodes.filter(n => n.kind === 'pipeline').map(n => n.id)
 
@@ -92,10 +97,19 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
 
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          {routes.length === 0 ? (
-            <p style={{ color: '#888' }}>No routes yet. {readOnly ? '' : 'Use “+ Router” to wire pipelines together.'}</p>
+          {topo.nodes.length === 0 ? (
+            <p style={{ color: '#888' }}>
+              No pipelines or routes yet. {readOnly ? '' : 'Attach a pipeline with “+ Pipeline”, then use “+ Router” to wire them together.'}
+            </p>
           ) : (
-            <TopologyCanvas topology={topo} selectedId={selectedId} onSelect={setSelectedId} />
+            <>
+              {routes.length === 0 && (
+                <p style={{ color: '#888', fontSize: 13, marginTop: 0 }}>
+                  No routes yet. {readOnly ? '' : 'Use “+ Router” to wire these pipelines together.'}
+                </p>
+              )}
+              <TopologyCanvas topology={topo} selectedId={selectedId} onSelect={setSelectedId} />
+            </>
           )}
         </div>
 

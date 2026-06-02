@@ -35,8 +35,15 @@ export const ROW_GAP = 28
 
 const routerId = (route: string) => `route:${route}`
 
-/** Build the node/edge graph from a project's routes. Positions are 0 until computeLayout runs. */
-export function buildTopology(project: PipelineProject): Topology {
+/**
+ * Build the node/edge graph from a project's routes. Positions are 0 until
+ * computeLayout runs.
+ *
+ * `memberPipelines` lists pipelines attached to the project via `projectRef`.
+ * They are added as standalone nodes so a freshly-attached pipeline shows on the
+ * map even before it is wired into any route (otherwise it would be invisible).
+ */
+export function buildTopology(project: PipelineProject, memberPipelines: string[] = []): Topology {
   const routes: ProjectRoute[] = project.spec.routes ?? []
   const nodes = new Map<string, TopoNode>()
   const edges: TopoEdge[] = []
@@ -58,6 +65,9 @@ export function buildTopology(project: PipelineProject): Topology {
       edges.push({ id: `${rid}->${t.pipeline}`, from: rid, to: t.pipeline, predicate: t.when || undefined })
     }
   }
+
+  // Members not referenced by any route appear as unconnected pipeline nodes.
+  for (const name of memberPipelines) ensurePipeline(name)
 
   return { nodes: [...nodes.values()], edges, width: 0, height: 0 }
 }
