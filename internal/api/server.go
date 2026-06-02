@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -230,5 +231,23 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	if err != nil {
 		panic("static embed broken: " + err.Error())
 	}
-	mux.Handle("/", http.FileServerFS(sub))
+	mux.Handle("/", spaCacheControl(http.FileServerFS(sub)))
+}
+
+// spaCacheControl wraps the static file server with SPA-appropriate caching.
+// Vite emits content-hashed asset filenames, so /assets/* are immutable and can
+// be cached forever. The HTML entrypoint, however, must always be revalidated:
+// otherwise a browser keeps a stale index.html across a redeploy that references
+// chunk hashes the new server no longer has, and a lazy-loaded chunk (e.g. the
+// Monaco editor) 404s — surfacing as a blank page when opening the editor.
+func spaCacheControl(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/assets/") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			// index.html and any non-asset path: cache but force revalidation.
+			w.Header().Set("Cache-Control", "no-cache")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
