@@ -228,7 +228,13 @@ func TestUpdateProject_InvalidGraphRejectedAndNotPersisted(t *testing.T) {
 	}
 
 	// CR must be unchanged (routes still empty).
-	getResp, _ := http.Get(ts.URL + "/api/v1/namespaces/default/pipelineprojects/orders2")
+	getResp, err := http.Get(ts.URL + "/api/v1/namespaces/default/pipelineprojects/orders2")
+	if err != nil {
+		t.Fatalf("GET after PUT: %v", err)
+	}
+	if getResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET: want 200, got %d", getResp.StatusCode)
+	}
 	defer func() { _ = getResp.Body.Close() }()
 	var got rpcv1alpha1.PipelineProject
 	_ = json.NewDecoder(getResp.Body).Decode(&got)
@@ -260,7 +266,13 @@ func TestUpdateProject_ValidGraphPersists(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("PUT: want 200, got %d", resp.StatusCode)
 	}
-	getResp, _ := http.Get(ts.URL + "/api/v1/namespaces/default/pipelineprojects/orders3")
+	getResp, err := http.Get(ts.URL + "/api/v1/namespaces/default/pipelineprojects/orders3")
+	if err != nil {
+		t.Fatalf("GET after PUT: %v", err)
+	}
+	if getResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET: want 200, got %d", getResp.StatusCode)
+	}
 	defer func() { _ = getResp.Body.Close() }()
 	var got rpcv1alpha1.PipelineProject
 	_ = json.NewDecoder(getResp.Body).Decode(&got)
