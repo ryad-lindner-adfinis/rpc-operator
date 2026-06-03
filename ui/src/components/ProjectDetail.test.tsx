@@ -71,6 +71,68 @@ describe('ProjectDetail', () => {
     expect(screen.queryByText('fan')).toBeNull()
   })
 
+  it('Save deploys the full draft once and clears the dirty pill', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    let putBody: any = null
+    let server_routes = orders.spec.routes
+    server.use(
+      http.get('/api/v1/namespaces/default/pipelineprojects/orders', () =>
+        HttpResponse.json({ ...orders, spec: { ...orders.spec, routes: server_routes } })),
+      http.put('/api/v1/namespaces/default/pipelineprojects/orders', async ({ request }) => {
+        putBody = await request.json()
+        server_routes = putBody.spec.routes               // reflect the commit on next GET
+        return HttpResponse.json({ ...orders, spec: { ...orders.spec, routes: server_routes } })
+      }),
+    )
+    render(<ProjectDetail namespace="default" name="orders" readOnly={false}
+      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+    await waitFor(() => expect(screen.getByText('fan')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByText('fan'))
+    await userEvent.click(screen.getByRole('button', { name: /Remove from draft/i }))
+    await userEvent.click(screen.getByRole('button', { name: /Save & deploy/i }))
+
+    await waitFor(() => expect(screen.queryByText(/Unsaved changes/i)).toBeNull())
+    expect(putBody.spec.routes).toEqual([])               // 'fan' removed
+  })
+
+  it('shows backend validation errors on a 422 and keeps the draft', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    server.use(
+      http.put('/api/v1/namespaces/default/pipelineprojects/orders', () =>
+        HttpResponse.json(
+          { error: 'validation failed', errors: [{ path: 'spec.routes', message: "input is managed by the project's routes; remove it" }] },
+          { status: 422 },
+        )),
+    )
+    render(<ProjectDetail namespace="default" name="orders" readOnly={false}
+      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+    await waitFor(() => expect(screen.getByText('fan')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByText('fan'))
+    await userEvent.click(screen.getByRole('button', { name: /Remove from draft/i }))
+    await userEvent.click(screen.getByRole('button', { name: /Save & deploy/i }))
+
+    await waitFor(() => expect(screen.getByText(/Cannot deploy — fix these routes/i)).toBeInTheDocument())
+    expect(screen.getByText(/input is managed by the project's routes/i)).toBeInTheDocument()
+    expect(screen.getByText(/Unsaved changes/i)).toBeInTheDocument()   // still dirty
+  })
+
+  it('Discard reverts the draft to the server routes', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<ProjectDetail namespace="default" name="orders" readOnly={false}
+      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+    await waitFor(() => expect(screen.getByText('fan')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByText('fan'))
+    await userEvent.click(screen.getByRole('button', { name: /Remove from draft/i }))
+    expect(screen.queryByText('fan')).toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: /Discard/i }))
+    expect(screen.getByText('fan')).toBeInTheDocument()
+    expect(screen.queryByText(/Unsaved changes/i)).toBeNull()
+  })
+
   it('hides + Router in read-only mode', async () => {
     render(<ProjectDetail namespace="default" name="orders" readOnly={true}
       onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)

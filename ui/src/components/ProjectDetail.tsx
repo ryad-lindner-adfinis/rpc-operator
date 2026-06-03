@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getProject, listPipelines } from '../api'
+import { getProject, listPipelines, updateProject } from '../api'
 import type { PipelineProject, ProjectRoute, ProjectRouteStatus, ValidationError } from '../types'
 import { buildTopology, computeLayout, type TopoNode } from '../topology'
 import { TopologyCanvas } from './TopologyCanvas'
@@ -84,6 +84,37 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
     setSelectedId(null)
   }
 
+  async function commitDraft() {
+    if (!project) return
+    setSaving(true)
+    setValidationErrors([])
+    setError(undefined)
+    try {
+      await updateProject(namespace, name,
+        { ...project.spec, routes: draftRoutes }, project.metadata.resourceVersion)
+      setDirty(false)
+      load()
+    } catch (e) {
+      const err = e as { status?: number; body?: { errors?: ValidationError[] }; message?: string }
+      if (err.status === 422 && err.body?.errors?.length) {
+        setValidationErrors(err.body.errors)
+      } else if (err.status === 409) {
+        setError('This project changed on the server. Discard to reload the latest, then re-apply your changes.')
+      } else {
+        setError(err.message ?? 'Save failed')
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function discardDraft() {
+    if (!project) return
+    setDraftRoutes(project.spec.routes ?? [])
+    setDirty(false)
+    setValidationErrors([])
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
@@ -93,11 +124,28 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
         {!readOnly && (
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
             {dirty && <span style={dirtyPillStyle}>● Unsaved changes</span>}
+            {dirty && (
+              <button onClick={commitDraft} disabled={saving} style={saveBtnStyle}>
+                {saving ? 'Saving…' : 'Save & deploy'}
+              </button>
+            )}
+            {dirty && (
+              <button onClick={discardDraft} disabled={saving} style={toolbarBtnStyle}>Discard</button>
+            )}
             <button onClick={() => onAddPipeline(name)} style={toolbarBtnStyle}>+ Pipeline</button>
             <button onClick={() => setDrawerRoute(null)} style={toolbarBtnStyle}>+ Router</button>
           </div>
         )}
       </div>
+
+      {validationErrors.length > 0 && (
+        <div style={validationBannerStyle}>
+          <strong>Cannot deploy — fix these routes:</strong>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+            {validationErrors.map((e, i) => <li key={i}>{e.message}</li>)}
+          </ul>
+        </div>
+      )}
 
       {problems.length > 0 && (
         <div style={degraded ? problemBannerStyle : infoBannerStyle}>
@@ -238,6 +286,14 @@ const panelTitleStyle: React.CSSProperties = { margin: '0 0 12px', fontSize: 14 
 const toolbarBtnStyle: React.CSSProperties = {
   padding: '5px 10px', fontSize: 12, background: '#1d4ed8', color: '#fff',
   border: 'none', borderRadius: 6, cursor: 'pointer',
+}
+const saveBtnStyle: React.CSSProperties = {
+  padding: '5px 12px', fontSize: 12, background: '#16a34a', color: '#fff',
+  border: 'none', borderRadius: 6, cursor: 'pointer',
+}
+const validationBannerStyle: React.CSSProperties = {
+  background: '#fef2f2', color: '#b91c1c', border: '1px solid #fca5a5',
+  borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16,
 }
 const deleteBtnStyle: React.CSSProperties = {
   padding: '5px 10px', fontSize: 12, background: '#fff', color: '#dc2626',
