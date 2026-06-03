@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -154,5 +155,136 @@ func TestHandlerDeleteProject(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+// --- validate-on-commit tests ---
+
+// namedProjectObj builds a PipelineProject with arbitrary ns/name and routes.
+func namedProjectObj(ns, name string, routes []rpcv1alpha1.ProjectRoute) *rpcv1alpha1.PipelineProject {
+	return &rpcv1alpha1.PipelineProject{
+		ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: name},
+		Spec:       rpcv1alpha1.PipelineProjectSpec{Routes: routes},
+	}
+}
+
+// rawPipelineObj builds a raw-YAML Pipeline attached to a project. The rawYAML
+// controls HasInput/HasOutput as ValidateProject sees them.
+func rawPipelineObj(ns, name, project, rawYAML string) *rpcv1alpha1.Pipeline {
+	return &rpcv1alpha1.Pipeline{
+		ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: name},
+		Spec: rpcv1alpha1.PipelineSpec{
+			ProjectRef: &rpcv1alpha1.ProjectRef{Name: project},
+			RawYAML:    rawYAML,
+		},
+	}
+}
+
+func putProjectBody(t *testing.T, ns, name string, routes []rpcv1alpha1.ProjectRoute) []byte {
+	t.Helper()
+	b, err := json.Marshal(map[string]any{
+		"apiVersion": "rpc.operator.io/v1alpha1",
+		"kind":       "PipelineProject",
+		"metadata":   map[string]any{"name": name, "namespace": ns},
+		"spec":       rpcv1alpha1.PipelineProjectSpec{Routes: routes},
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return b
+}
+
+// A sink pipeline that still declares its own input conflicts with the
+// operator-managed input → update must be rejected 422 and NOT persisted.
+func TestUpdateProject_InvalidGraphRejectedAndNotPersisted(t *testing.T) {
+	ns := "default"
+	source := rawPipelineObj(ns, "ingest", "orders2", "input:\n  generate: {}\npipeline:\n  processors: []\n")
+	sink := rawPipelineObj(ns, "warehouse", "orders2", "input:\n  generate: {}\npipeline:\n  processors: []\noutput:\n  stdout: {}\n")
+	proj := namedProjectObj(ns, "orders2", nil)
+	ts := newTestServer(t, proj, source, sink)
+	defer ts.Close()
+
+	routes := []rpcv1alpha1.ProjectRoute{{
+		Name: "fan", From: "ingest", To: []rpcv1alpha1.ProjectRouteTarget{{Pipeline: "warehouse"}},
+	}}
+	req, _ := http.NewRequest(http.MethodPut,
+		ts.URL+"/api/v1/namespaces/default/pipelineprojects/orders2",
+		bytes.NewReader(putProjectBody(t, ns, "orders2", routes)))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PUT: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("PUT: want 422, got %d", resp.StatusCode)
+	}
+	var body struct {
+		Errors []struct{ Message string } `json:"errors"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if len(body.Errors) == 0 {
+		t.Fatalf("want validation errors, got none")
+	}
+
+	// CR must be unchanged (routes still empty).
+	getResp, _ := http.Get(ts.URL + "/api/v1/namespaces/default/pipelineprojects/orders2")
+	defer func() { _ = getResp.Body.Close() }()
+	var got rpcv1alpha1.PipelineProject
+	_ = json.NewDecoder(getResp.Body).Decode(&got)
+	if len(got.Spec.Routes) != 0 {
+		t.Errorf("routes persisted despite invalid graph: %+v", got.Spec.Routes)
+	}
+}
+
+func TestUpdateProject_ValidGraphPersists(t *testing.T) {
+	ns := "default"
+	source := rawPipelineObj(ns, "ingest2", "orders3", "input:\n  generate: {}\npipeline:\n  processors: []\n")
+	sink := rawPipelineObj(ns, "warehouse2", "orders3", "pipeline:\n  processors: []\noutput:\n  stdout: {}\n")
+	proj := namedProjectObj(ns, "orders3", nil)
+	ts := newTestServer(t, proj, source, sink)
+	defer ts.Close()
+
+	routes := []rpcv1alpha1.ProjectRoute{{
+		Name: "fan", From: "ingest2", To: []rpcv1alpha1.ProjectRouteTarget{{Pipeline: "warehouse2"}},
+	}}
+	req, _ := http.NewRequest(http.MethodPut,
+		ts.URL+"/api/v1/namespaces/default/pipelineprojects/orders3",
+		bytes.NewReader(putProjectBody(t, ns, "orders3", routes)))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PUT: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT: want 200, got %d", resp.StatusCode)
+	}
+	getResp, _ := http.Get(ts.URL + "/api/v1/namespaces/default/pipelineprojects/orders3")
+	defer func() { _ = getResp.Body.Close() }()
+	var got rpcv1alpha1.PipelineProject
+	_ = json.NewDecoder(getResp.Body).Decode(&got)
+	if len(got.Spec.Routes) != 1 || got.Spec.Routes[0].Name != "fan" {
+		t.Errorf("routes not persisted: %+v", got.Spec.Routes)
+	}
+}
+
+func TestCreateProject_NoRoutesIsValid(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.Close()
+	body, _ := json.Marshal(map[string]any{
+		"apiVersion": "rpc.operator.io/v1alpha1",
+		"kind":       "PipelineProject",
+		"metadata":   map[string]any{"name": "empty", "namespace": "default"},
+		"spec":       rpcv1alpha1.PipelineProjectSpec{},
+	})
+	resp, err := http.Post(ts.URL+"/api/v1/namespaces/default/pipelineprojects",
+		"application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("POST: want 201, got %d", resp.StatusCode)
 	}
 }

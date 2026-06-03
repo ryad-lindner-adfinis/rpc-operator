@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -13,6 +14,20 @@ func stripProjectManagedFields(items []rpcv1alpha1.PipelineProject) {
 	for i := range items {
 		items[i].ManagedFields = nil
 	}
+}
+
+// validateProjectGraph lists the namespace's pipelines and validates the
+// project's route graph against them. Returns nil when valid. Used by create
+// and update so an invalid graph is never persisted (the controller still marks
+// drift Degraded post-hoc — defense in depth).
+func (s *Server) validateProjectGraph(
+	ctx context.Context, c client.Client, ns string, p *rpcv1alpha1.PipelineProject,
+) []ValidationError {
+	var pipes rpcv1alpha1.PipelineList
+	if err := c.List(ctx, &pipes, client.InNamespace(ns)); err != nil {
+		return []ValidationError{{Path: "spec.routes", Message: "could not list pipelines: " + err.Error()}}
+	}
+	return ValidateProject(p, pipes.Items)
 }
 
 func (s *Server) handleListAllProjects(w http.ResponseWriter, r *http.Request) {
@@ -81,6 +96,10 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusInternalServerError, "internal error", err.Error())
 		return
 	}
+	if verrs := s.validateProjectGraph(r.Context(), c, ns, &p); len(verrs) > 0 {
+		writeValidationErrors(w, verrs)
+		return
+	}
 	if err := c.Create(r.Context(), &p); err != nil {
 		writeK8sError(w, err)
 		return
@@ -108,6 +127,10 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	current.Spec = body.Spec
+	if verrs := s.validateProjectGraph(r.Context(), c, ns, &current); len(verrs) > 0 {
+		writeValidationErrors(w, verrs)
+		return
+	}
 	if err := c.Update(r.Context(), &current); err != nil {
 		writeK8sError(w, err)
 		return
