@@ -173,6 +173,24 @@ describe('ProjectDetail', () => {
     expect(onBack).toHaveBeenCalledTimes(1)
   })
 
+  it('opens a pipeline without a discard prompt, even when the draft is dirty', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm')
+    const onOpenPipeline = vi.fn()
+
+    // Controlled dirty draft that still contains the route (so 'ingest' is a node).
+    render(<ProjectDetail namespace="default" name="orders" readOnly={false}
+      onBack={() => {}} onOpenPipeline={onOpenPipeline} onAddPipeline={() => {}}
+      draftRoutes={orders.spec.routes!} dirty={true}
+      setDraftRoutes={() => {}} setDirty={() => {}} />)
+    await waitFor(() => expect(screen.getByText('ingest')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByText('ingest'))                        // select pipeline node
+    await userEvent.click(screen.getByRole('button', { name: /Open pipeline/i }))
+
+    expect(onOpenPipeline).toHaveBeenCalledWith('ingest')
+    expect(confirmSpy).not.toHaveBeenCalled()                               // no discard prompt
+  })
+
   it('hides + Router in read-only mode', async () => {
     render(<ProjectDetail namespace="default" name="orders" readOnly={true}
       onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)

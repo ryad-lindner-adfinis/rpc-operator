@@ -221,7 +221,7 @@ export function ProjectDetail({
               onDelete={removeRoute}
             />
           ) : (
-            <PipelinePanel node={selectedNode} routes={draftRoutes} onOpen={p => guardLeave(() => onOpenPipeline(p))} />
+            <PipelinePanel node={selectedNode} routes={draftRoutes} onOpen={onOpenPipeline} />
           )}
         </aside>
       </div>
