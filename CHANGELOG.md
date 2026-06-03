@@ -2,6 +2,35 @@
 
 All notable changes to this project are documented here.
 
+## F50.3 Pipeline Projects — Taktische Karte: Entwurfsmodus — 2026-06-02
+
+Router-Änderungen auf der taktischen Karte werden jetzt als clientseitiger,
+sitzungsgebundener Entwurf gehalten und erst per **Save & deploy** committet.
+Der Commit wird im Backend validiert: `handleCreateProject`/`handleUpdateProject`
+prüfen den Routen-Graphen vor dem Schreiben und liefern `422` ohne zu
+persistieren, wenn er ungültig ist (zugleich Härtung des Schreibpfads).
+
+### Added
+
+- **Routen-Entwurf** — Router anlegen/bearbeiten/entfernen mutiert nur einen
+  lokalen `draftRoutes`-Zustand; die Karte zeigt die Änderungen sofort, ohne zu
+  deployen. Eine „● Unsaved changes“-Pille signalisiert ungespeicherte Änderungen.
+- **Save & deploy / Discard** — finaler, validierter Commit bzw. Verwerfen auf
+  den Serverstand. Bei `422` listet ein roter Banner die verbatim
+  Backend-Meldungen; der Entwurf bleibt zum Korrigieren erhalten. Save-Fehler
+  (409/generisch) erscheinen in einem eigenen Banner, ohne die Karte samt
+  Entwurf auszublenden.
+- **Verlassen-Warnung** — Back, „Open pipeline“ und „+ Pipeline“ fragen bei
+  ungespeichertem Entwurf nach (der Entwurf ist sitzungsgebunden).
+- **Backend-Validierung beim Schreiben** — `ValidateProject` wird in den
+  Projekt-Create/Update-Handlern aufgerufen; invalide Graphen werden nie
+  persistiert (der Controller markiert Drift weiterhin nachgelagert `Degraded`).
+
+### Notes
+
+- Der Entwurf ist bewusst sitzungsgebunden (kein serverseitiger Draft); ein
+  Reload oder Verlassen der Karte ohne Speichern verwirft ihn.
+
 ## F50.3 Pipeline Projects — UI — 2026-06-02
 
 **Commits:** `5eecf6e`..HEAD (Branch `feat/f50.3-projects-ui`)
