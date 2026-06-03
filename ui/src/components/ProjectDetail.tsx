@@ -28,6 +28,7 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
   const [draftRoutes, setDraftRoutes] = useState<ProjectRoute[]>([])
   const [dirty, setDirty] = useState(false)
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
+  const [saveError, setSaveError] = useState<string | undefined>(undefined)
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(() => {
@@ -88,7 +89,7 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
     if (!project) return
     setSaving(true)
     setValidationErrors([])
-    setError(undefined)
+    setSaveError(undefined)
     try {
       await updateProject(namespace, name,
         { ...project.spec, routes: draftRoutes }, project.metadata.resourceVersion)
@@ -96,12 +97,13 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
       load()
     } catch (e) {
       const err = e as { status?: number; body?: { errors?: ValidationError[] }; message?: string }
-      if (err.status === 422 && err.body?.errors?.length) {
-        setValidationErrors(err.body.errors)
+      if (err.status === 422) {
+        setValidationErrors(err.body?.errors?.length ? err.body.errors
+          : [{ path: 'spec.routes', message: err.message ?? 'Validation failed' }])
       } else if (err.status === 409) {
-        setError('This project changed on the server. Discard to reload the latest, then re-apply your changes.')
+        setSaveError('This project changed on the server. Discard to reload the latest, then re-apply your changes.')
       } else {
-        setError(err.message ?? 'Save failed')
+        setSaveError(err.message ?? 'Save failed')
       }
     } finally {
       setSaving(false)
@@ -113,6 +115,7 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
     setDraftRoutes(project.spec.routes ?? [])
     setDirty(false)
     setValidationErrors([])
+    setSaveError(undefined)
   }
 
   return (
@@ -139,7 +142,7 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
       </div>
 
       {validationErrors.length > 0 && (
-        <div style={validationBannerStyle}>
+        <div style={redBannerStyle}>
           <strong>Cannot deploy — fix these routes:</strong>
           <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
             {validationErrors.map((e, i) => <li key={i}>{e.message}</li>)}
@@ -147,8 +150,12 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
         </div>
       )}
 
+      {saveError && (
+        <div style={redBannerStyle} role="alert">{saveError}</div>
+      )}
+
       {problems.length > 0 && (
-        <div style={degraded ? problemBannerStyle : infoBannerStyle}>
+        <div style={degraded ? redBannerStyle : infoBannerStyle}>
           <strong>{degraded ? 'Project degraded' : 'Project provisioning'}</strong>
           <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
             {problems.map(c => (
@@ -291,17 +298,13 @@ const saveBtnStyle: React.CSSProperties = {
   padding: '5px 12px', fontSize: 12, background: '#16a34a', color: '#fff',
   border: 'none', borderRadius: 6, cursor: 'pointer',
 }
-const validationBannerStyle: React.CSSProperties = {
+const redBannerStyle: React.CSSProperties = {
   background: '#fef2f2', color: '#b91c1c', border: '1px solid #fca5a5',
   borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16,
 }
 const deleteBtnStyle: React.CSSProperties = {
   padding: '5px 10px', fontSize: 12, background: '#fff', color: '#dc2626',
   border: '1px solid #fca5a5', borderRadius: 6, cursor: 'pointer',
-}
-const problemBannerStyle: React.CSSProperties = {
-  background: '#fef2f2', color: '#b91c1c', border: '1px solid #fca5a5',
-  borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16,
 }
 const infoBannerStyle: React.CSSProperties = {
   background: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d',

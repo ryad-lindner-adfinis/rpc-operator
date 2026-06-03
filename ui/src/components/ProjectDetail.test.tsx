@@ -118,6 +118,26 @@ describe('ProjectDetail', () => {
     expect(screen.getByText(/Unsaved changes/i)).toBeInTheDocument()   // still dirty
   })
 
+  it('keeps the map and draft on a non-validation save error (409)', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    server.use(
+      http.put('/api/v1/namespaces/default/pipelineprojects/orders', () =>
+        HttpResponse.json({ error: 'conflict' }, { status: 409 })),
+    )
+    render(<ProjectDetail namespace="default" name="orders" readOnly={false}
+      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+    await waitFor(() => expect(screen.getByText('fan')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByText('fan'))
+    await userEvent.click(screen.getByRole('button', { name: /Remove from draft/i }))
+    await userEvent.click(screen.getByRole('button', { name: /Save & deploy/i }))
+
+    // The map is NOT replaced by a full-page error: the draft + Discard remain.
+    await waitFor(() => expect(screen.getByText(/changed on the server/i)).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: /Discard/i })).toBeInTheDocument()
+    expect(screen.getByText(/Unsaved changes/i)).toBeInTheDocument()   // draft still dirty
+  })
+
   it('Discard reverts the draft to the server routes', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<ProjectDetail namespace="default" name="orders" readOnly={false}
