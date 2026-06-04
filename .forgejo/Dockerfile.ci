@@ -11,7 +11,7 @@
 #
 # The CI jobs (lint/test/docs) pin :<version> — NOT :latest — because the runner
 # caches a moving tag and never re-pulls it. So every rebuild MUST bump the version:
-#   1. Bump the version here and in lint.yml / test.yml / docs.yml (currently :3).
+#   1. Bump the version here and in lint.yml / test.yml / docs.yml (currently :5).
 #   2. Run "Build CI Image" with the matching version input.
 #
 # Manual fallback (single-arch only) — build/push on a host of the target arch:
@@ -41,7 +41,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Go ────────────────────────────────────────────────────────────────────────
-ARG GO_VERSION=1.25.7
+ARG GO_VERSION=1.26.3
 RUN ARCH=$(dpkg --print-architecture) \
     && curl -sSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" \
        | tar -C /usr/local -xz

@@ -19,7 +19,7 @@ jobs:
       - docker
       - arm64
     container:
-      image: forgejo.thecloudroute.com/tom/rpc-operator/ci:4
+      image: forgejo.thecloudroute.com/tom/rpc-operator/ci:5
 
     steps:
       - name: Checkout
