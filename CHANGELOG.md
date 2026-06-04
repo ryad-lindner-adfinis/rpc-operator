@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented here.
 
+## F50.4 Navigation — Editor-Rückkehr zum Ursprung + Projekt-Vorauswahl — 2026-06-04
+
+Beim Bearbeiten einer aus einem Projekt geöffneten Pipeline führt „← Back“ jetzt
+zurück zur Pipeline-Detailansicht (und von dort weiter zum Projekt); „Speichern“
+kehrt zur aktualisierten Detailansicht zurück. Beim Anlegen einer neuen Pipeline
+innerhalb eines Projekts ist das Projekt im YAML-Editor vorausgewählt, und
+„Deploy“/„← Back“ führen zurück zum Projekt.
+
+### Added
+
+- **Editor-Ursprungs-Routing** — `App` merkt sich, woraus der Editor geöffnet
+  wurde (`editorBackTarget`: Liste / Detail / Projekt); „← Back“ und „Speichern“
+  kehren dorthin zurück. Ein Detail-Ursprung führt „Speichern“ zur frisch
+  geladenen Detailansicht zurück (ursprünglicher `pipelineOrigin` bleibt erhalten).
+- **Projekt-Vorauswahl im YAML-Editor** — `RawPipelineEditor` akzeptiert
+  `initialProjectRef`; beim „+ Pipeline“ aus einem Projekt ist das Projekt im
+  Dropdown vorausgewählt. Ein vorhandenes `editPipeline.projectRef` hat weiterhin
+  Vorrang.
+
 ## F50.4 Navigation — Rückkehr zum Ursprung + Entwurfs-Erhalt — 2026-06-04
 
 Öffnet man eine Pipeline aus einem Projekt (oder Cluster) heraus, führt „← Back“
