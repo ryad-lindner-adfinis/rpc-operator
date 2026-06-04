@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented here.
 
+## F50.4 Navigation — Rückkehr zum Ursprung + Entwurfs-Erhalt — 2026-06-04
+
+Öffnet man eine Pipeline aus einem Projekt (oder Cluster) heraus, führt „← Back“
+jetzt zurück zur Projekt- bzw. Cluster-Ansicht statt zur Pipeline-Liste. Der
+Abstecher in die Pipeline ist reversibel: ein laufender, noch nicht gespeicherter
+Routen-Entwurf des Projekts bleibt erhalten, sodass man nahtlos weiterarbeiten kann.
+
+### Added
+
+- **Ursprungs-Routing** — `App` merkt sich einen Ursprung (`pipelineBackTarget`),
+  wenn eine Pipeline-Detailansicht geöffnet wird; „← Back“ kehrt zum Projekt-,
+  Cluster- oder Listen-Ursprung zurück (eine Ebene tief, per Design).
+- **Entwurfs-Erhalt über den Abstecher** — der Routen-Entwurf
+  (`draftRoutes`/`dirty`) liegt nun in `App` und wird als optionale Props an
+  `ProjectDetail` gereicht; er überlebt das Aus-/Wiedereinhängen der Karte.
+  Beim Betreten eines (anderen) Projekts wird der Entwurf zurückgesetzt, damit
+  kein veralteter Entwurf zwischen Projekten durchschlägt.
+
+### Changed
+
+- **„Open pipeline“ verwirft den Entwurf nicht mehr** — das Öffnen einer
+  Pipeline aus der Karte ist jetzt ein nicht-destruktiver Abstecher (kein
+  „changes will be lost“-Dialog mehr). Back und „+ Pipeline“ fragen bei
+  ungespeichertem Entwurf weiterhin nach.
+
 ## F50.3 Pipeline Projects — Taktische Karte: Entwurfsmodus — 2026-06-02
 
 Router-Änderungen auf der taktischen Karte werden jetzt als clientseitiger,
