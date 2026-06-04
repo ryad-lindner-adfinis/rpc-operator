@@ -8,6 +8,9 @@ import (
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 )
 
+// fanOutSubject is the expected NATS subject for the sample "fan-out" route.
+const fanOutSubject = "rpc.orders.fan-out"
+
 func sampleRoutes() []rpcv1alpha1.ProjectRoute {
 	return []rpcv1alpha1.ProjectRoute{
 		{Name: "fan-out", From: "ingest", To: []rpcv1alpha1.ProjectRouteTarget{
@@ -21,7 +24,7 @@ func TestNaming(t *testing.T) {
 	if got := StreamName("orders", "fan-out"); got != "rpc-orders-fan-out" {
 		t.Errorf("StreamName=%q", got)
 	}
-	if got := Subject("orders", "fan-out"); got != "rpc.orders.fan-out" {
+	if got := Subject("orders", "fan-out"); got != fanOutSubject {
 		t.Errorf("Subject=%q", got)
 	}
 	if got := DurableName("orders", "fan-out", "alert"); got != "orders-fan-out-alert" {
@@ -59,7 +62,7 @@ func TestPlanFor_SourceAndSink(t *testing.T) {
 	proj.Name = "orders"
 
 	src := PlanFor(proj, "ns", "ingest")
-	if len(src.OutgoingSubjects) != 1 || src.OutgoingSubjects[0] != "rpc.orders.fan-out" {
+	if len(src.OutgoingSubjects) != 1 || src.OutgoingSubjects[0] != fanOutSubject {
 		t.Errorf("source OutgoingSubjects=%v", src.OutgoingSubjects)
 	}
 	if len(src.Incoming) != 0 {
@@ -71,7 +74,7 @@ func TestPlanFor_SourceAndSink(t *testing.T) {
 		t.Fatalf("alert Incoming=%v", alert.Incoming)
 	}
 	in := alert.Incoming[0]
-	if in.Subject != "rpc.orders.fan-out" || in.Durable != "orders-fan-out-alert" || in.When != `this.level == "high"` {
+	if in.Subject != fanOutSubject || in.Durable != "orders-fan-out-alert" || in.When != `this.level == "high"` {
 		t.Errorf("alert incoming=%+v", in)
 	}
 }
@@ -80,9 +83,9 @@ func pv(name, project string, hasIn, hasOut bool) PipelineView {
 	return PipelineView{Name: name, ProjectName: project, HasInput: hasIn, HasOutput: hasOut}
 }
 
-func projWith(name string, routes []rpcv1alpha1.ProjectRoute) *rpcv1alpha1.PipelineProject {
+func projWith(routes []rpcv1alpha1.ProjectRoute) *rpcv1alpha1.PipelineProject {
 	p := &rpcv1alpha1.PipelineProject{Spec: rpcv1alpha1.PipelineProjectSpec{Routes: routes}}
-	p.Name = name
+	p.Name = "orders"
 	return p
 }
 
@@ -99,7 +102,7 @@ func hasMsg(errs []ProjectError, want string) bool {
 }
 
 func TestValidateProject_Valid(t *testing.T) {
-	proj := projWith("orders", sampleRoutes())
+	proj := projWith(sampleRoutes())
 	pipes := map[string]PipelineView{
 		"ingest":    pv("ingest", "orders", false, false),
 		"warehouse": pv("warehouse", "orders", false, false),
@@ -111,7 +114,7 @@ func TestValidateProject_Valid(t *testing.T) {
 }
 
 func TestValidateProject_MissingRefs(t *testing.T) {
-	proj := projWith("orders", []rpcv1alpha1.ProjectRoute{
+	proj := projWith([]rpcv1alpha1.ProjectRoute{
 		{Name: "r", From: "ghost", To: []rpcv1alpha1.ProjectRouteTarget{{Pipeline: "void"}}},
 	})
 	errs := ValidateProject(proj, map[string]PipelineView{})
@@ -124,7 +127,7 @@ func TestValidateProject_MissingRefs(t *testing.T) {
 }
 
 func TestValidateProject_DuplicateName(t *testing.T) {
-	proj := projWith("orders", []rpcv1alpha1.ProjectRoute{
+	proj := projWith([]rpcv1alpha1.ProjectRoute{
 		{Name: "dup", From: "a", To: []rpcv1alpha1.ProjectRouteTarget{{Pipeline: "b"}}},
 		{Name: "dup", From: "a", To: []rpcv1alpha1.ProjectRouteTarget{{Pipeline: "c"}}},
 	})
@@ -137,7 +140,7 @@ func TestValidateProject_DuplicateName(t *testing.T) {
 }
 
 func TestValidateProject_Cycle(t *testing.T) {
-	proj := projWith("orders", []rpcv1alpha1.ProjectRoute{
+	proj := projWith([]rpcv1alpha1.ProjectRoute{
 		{Name: "ab", From: "a", To: []rpcv1alpha1.ProjectRouteTarget{{Pipeline: "b"}}},
 		{Name: "ba", From: "b", To: []rpcv1alpha1.ProjectRouteTarget{{Pipeline: "a"}}},
 	})
@@ -149,7 +152,7 @@ func TestValidateProject_Cycle(t *testing.T) {
 }
 
 func TestValidateProject_BadPredicate(t *testing.T) {
-	proj := projWith("orders", []rpcv1alpha1.ProjectRoute{
+	proj := projWith([]rpcv1alpha1.ProjectRoute{
 		{Name: "r", From: "a", To: []rpcv1alpha1.ProjectRouteTarget{{Pipeline: "b", When: "this.("}}},
 	})
 	pipes := map[string]PipelineView{"a": pv("a", "orders", false, false), "b": pv("b", "orders", false, false)}
@@ -166,7 +169,7 @@ func TestValidateProject_BadPredicate(t *testing.T) {
 }
 
 func TestValidateProject_IOConflict(t *testing.T) {
-	proj := projWith("orders", sampleRoutes())
+	proj := projWith(sampleRoutes())
 	pipes := map[string]PipelineView{
 		"ingest":    pv("ingest", "orders", false, true),
 		"warehouse": pv("warehouse", "orders", true, false),
@@ -186,7 +189,7 @@ func TestPlanFor_MiddleRole(t *testing.T) {
 		{Name: "in", From: "x", To: []rpcv1alpha1.ProjectRouteTarget{{Pipeline: "m"}}},
 		{Name: "out", From: "m", To: []rpcv1alpha1.ProjectRouteTarget{{Pipeline: "y"}}},
 	}
-	proj := projWith("orders", routes)
+	proj := projWith(routes)
 	plan := PlanFor(proj, "ns", "m")
 	if len(plan.OutgoingSubjects) != 1 || plan.OutgoingSubjects[0] != "rpc.orders.out" {
 		t.Errorf("middle Outgoing=%v", plan.OutgoingSubjects)
@@ -200,7 +203,7 @@ func TestPlanFor_MiddleRole(t *testing.T) {
 }
 
 func TestIsEmpty_Standalone(t *testing.T) {
-	proj := projWith("orders", sampleRoutes())
+	proj := projWith(sampleRoutes())
 	plan := PlanFor(proj, "ns", "unrelated")
 	if !plan.IsEmpty() {
 		t.Errorf("standalone plan must be empty, got %+v", plan)
@@ -209,7 +212,7 @@ func TestIsEmpty_Standalone(t *testing.T) {
 
 func TestValidateProject_WrongProjectRef(t *testing.T) {
 	// "alert" exists but claims a different project — must be treated as not in project.
-	proj := projWith("orders", []rpcv1alpha1.ProjectRoute{
+	proj := projWith([]rpcv1alpha1.ProjectRoute{
 		{Name: "r", From: "ingest", To: []rpcv1alpha1.ProjectRouteTarget{{Pipeline: "alert"}}},
 	})
 	pipes := map[string]PipelineView{

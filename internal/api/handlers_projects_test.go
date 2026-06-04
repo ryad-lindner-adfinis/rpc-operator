@@ -15,7 +15,7 @@ import (
 // projectObj builds a Ready PipelineProject named "orders" in namespace "default".
 func projectObj() *rpcv1alpha1.PipelineProject {
 	return &rpcv1alpha1.PipelineProject{
-		ObjectMeta: metav1.ObjectMeta{Name: "orders", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: orderProject, Namespace: defaultNamespace},
 		Spec: rpcv1alpha1.PipelineProjectSpec{
 			Description: "routed orders",
 			Routes: []rpcv1alpha1.ProjectRoute{
@@ -48,7 +48,7 @@ func TestHandlerListNamespacedProjects(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if len(body.Items) != 1 || body.Items[0].Name != "orders" {
+	if len(body.Items) != 1 || body.Items[0].Name != orderProject {
 		t.Fatalf("expected [orders], got %+v", body.Items)
 	}
 }
@@ -69,7 +69,7 @@ func TestHandlerGetProject(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if got.Name != "orders" || got.Status.Cluster.Name != "orders-cluster" {
+	if got.Name != orderProject || got.Status.Cluster.Name != "orders-cluster" {
 		t.Fatalf("unexpected project: %+v", got)
 	}
 }
@@ -108,7 +108,7 @@ func TestHandlerCreateProject(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if got.Name != "neo" || got.Namespace != "default" {
+	if got.Name != "neo" || got.Namespace != defaultNamespace {
 		t.Fatalf("unexpected created project: %+v", got)
 	}
 }
@@ -170,9 +170,9 @@ func namedProjectObj(ns, name string, routes []rpcv1alpha1.ProjectRoute) *rpcv1a
 
 // rawPipelineObj builds a raw-YAML Pipeline attached to a project. The rawYAML
 // controls HasInput/HasOutput as ValidateProject sees them.
-func rawPipelineObj(ns, name, project, rawYAML string) *rpcv1alpha1.Pipeline {
+func rawPipelineObj(name, project, rawYAML string) *rpcv1alpha1.Pipeline {
 	return &rpcv1alpha1.Pipeline{
-		ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: name},
+		ObjectMeta: metav1.ObjectMeta{Namespace: defaultNamespace, Name: name},
 		Spec: rpcv1alpha1.PipelineSpec{
 			ProjectRef: &rpcv1alpha1.ProjectRef{Name: project},
 			RawYAML:    rawYAML,
@@ -197,9 +197,9 @@ func putProjectBody(t *testing.T, ns, name string, routes []rpcv1alpha1.ProjectR
 // A sink pipeline that still declares its own input conflicts with the
 // operator-managed input → update must be rejected 422 and NOT persisted.
 func TestUpdateProject_InvalidGraphRejectedAndNotPersisted(t *testing.T) {
-	ns := "default"
-	source := rawPipelineObj(ns, "ingest", "orders2", "input:\n  generate: {}\npipeline:\n  processors: []\n")
-	sink := rawPipelineObj(ns, "warehouse", "orders2", "input:\n  generate: {}\npipeline:\n  processors: []\noutput:\n  stdout: {}\n")
+	ns := defaultNamespace
+	source := rawPipelineObj("ingest", "orders2", "input:\n  generate: {}\npipeline:\n  processors: []\n")
+	sink := rawPipelineObj("warehouse", "orders2", "input:\n  generate: {}\npipeline:\n  processors: []\noutput:\n  stdout: {}\n")
 	proj := namedProjectObj(ns, "orders2", nil)
 	ts := newTestServer(t, proj, source, sink)
 	defer ts.Close()
@@ -244,9 +244,9 @@ func TestUpdateProject_InvalidGraphRejectedAndNotPersisted(t *testing.T) {
 }
 
 func TestUpdateProject_ValidGraphPersists(t *testing.T) {
-	ns := "default"
-	source := rawPipelineObj(ns, "ingest2", "orders3", "input:\n  generate: {}\npipeline:\n  processors: []\n")
-	sink := rawPipelineObj(ns, "warehouse2", "orders3", "pipeline:\n  processors: []\noutput:\n  stdout: {}\n")
+	ns := defaultNamespace
+	source := rawPipelineObj("ingest2", "orders3", "input:\n  generate: {}\npipeline:\n  processors: []\n")
+	sink := rawPipelineObj("warehouse2", "orders3", "pipeline:\n  processors: []\noutput:\n  stdout: {}\n")
 	proj := namedProjectObj(ns, "orders3", nil)
 	ts := newTestServer(t, proj, source, sink)
 	defer ts.Close()
@@ -287,7 +287,7 @@ func TestCreateProject_NoRoutesIsValid(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{
 		"apiVersion": "rpc.operator.io/v1alpha1",
 		"kind":       "PipelineProject",
-		"metadata":   map[string]any{"name": "empty", "namespace": "default"},
+		"metadata":   map[string]any{"name": "empty", "namespace": defaultNamespace},
 		"spec":       rpcv1alpha1.PipelineProjectSpec{},
 	})
 	resp, err := http.Post(ts.URL+"/api/v1/namespaces/default/pipelineprojects",
@@ -304,9 +304,9 @@ func TestCreateProject_NoRoutesIsValid(t *testing.T) {
 // The create path validates too: a sink that still declares its own input
 // conflicts with the operator-managed input → 422 and the CR is not created.
 func TestCreateProject_InvalidGraphRejected(t *testing.T) {
-	ns := "default"
-	source := rawPipelineObj(ns, "ingest3", "orders4", "input:\n  generate: {}\npipeline:\n  processors: []\n")
-	sink := rawPipelineObj(ns, "warehouse3", "orders4", "input:\n  generate: {}\npipeline:\n  processors: []\noutput:\n  stdout: {}\n")
+	ns := defaultNamespace
+	source := rawPipelineObj("ingest3", "orders4", "input:\n  generate: {}\npipeline:\n  processors: []\n")
+	sink := rawPipelineObj("warehouse3", "orders4", "input:\n  generate: {}\npipeline:\n  processors: []\noutput:\n  stdout: {}\n")
 	ts := newTestServer(t, source, sink)
 	defer ts.Close()
 

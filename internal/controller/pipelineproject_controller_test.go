@@ -100,7 +100,7 @@ var _ = Describe("PipelineProject Controller", func() {
 		// First reconcile adds the finalizer and requeues; second does the work.
 		res, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(res.Requeue).To(BeTrue())
+		Expect(res.Requeue).To(BeTrue()) //nolint:staticcheck // SA1019: asserts the reconciler's Requeue:true path (same deprecation as production)
 		_, err = r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
 		Expect(err).NotTo(HaveOccurred())
 
@@ -148,7 +148,7 @@ var _ = Describe("PipelineProject Controller", func() {
 		// Establish the finalizer first.
 		res, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(res.Requeue).To(BeTrue())
+		Expect(res.Requeue).To(BeTrue()) //nolint:staticcheck // SA1019: asserts the reconciler's Requeue:true path (same deprecation as production)
 		_, err = r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
 		Expect(err).NotTo(HaveOccurred())
 
@@ -174,7 +174,7 @@ var _ = Describe("PipelineProject Controller", func() {
 		// First reconcile adds the finalizer and requeues; second does the work.
 		res, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(res.Requeue).To(BeTrue())
+		Expect(res.Requeue).To(BeTrue()) //nolint:staticcheck // SA1019: asserts the reconciler's Requeue:true path (same deprecation as production)
 		_, err = r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
 		Expect(err).NotTo(HaveOccurred())
 

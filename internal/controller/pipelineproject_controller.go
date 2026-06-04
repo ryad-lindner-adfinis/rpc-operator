@@ -72,6 +72,8 @@ type PipelineProjectReconciler struct {
 // +kubebuilder:rbac:groups=rpc.operator.io,resources=pipelines,verbs=get;list;watch
 
 // Reconcile drives a PipelineProject towards its desired state.
+//
+//nolint:gocyclo // Reconcile orchestrates many sequential lifecycle steps; splitting it would obscure the linear flow.
 func (r *PipelineProjectReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var project rpcv1alpha1.PipelineProject
 	if err := r.Get(ctx, req.NamespacedName, &project); err != nil {
@@ -283,9 +285,9 @@ func projectNATSStorage(p *rpcv1alpha1.PipelineProject) resource.Quantity {
 // Note: Reconcile overrides the result to Degraded when the route graph is
 // invalid (see the RoutesValid handling); this function only covers child
 // readiness.
-func deriveProjectPhase(cluster, nats rpcv1alpha1.ProjectChildStatus) rpcv1alpha1.PipelineProjectPhase {
+func deriveProjectPhase(cluster, natsStatus rpcv1alpha1.ProjectChildStatus) rpcv1alpha1.PipelineProjectPhase {
 	if cluster.Total > 0 && cluster.Ready >= cluster.Total &&
-		nats.Total > 0 && nats.Ready >= nats.Total {
+		natsStatus.Total > 0 && natsStatus.Ready >= natsStatus.Total {
 		return rpcv1alpha1.ProjectPhaseReady
 	}
 	return rpcv1alpha1.ProjectPhaseProvisioning
@@ -323,7 +325,9 @@ func (r *PipelineProjectReconciler) cleanupForDelete(
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *PipelineProjectReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.Recorder = mgr.GetEventRecorderFor("pipelineproject")
+	// GetEventRecorder (new events API) returns a different recorder type; migrating
+	// Recorder + all Event() call sites is a separate effort.
+	r.Recorder = mgr.GetEventRecorderFor("pipelineproject") //nolint:staticcheck // SA1019: events-API migration deferred
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&rpcv1alpha1.PipelineProject{}).
 		Owns(&rpcv1alpha1.PipelineCluster{}).

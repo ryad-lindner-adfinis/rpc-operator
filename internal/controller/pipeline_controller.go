@@ -69,6 +69,8 @@ type PipelineReconciler struct {
 // Reconcile drives the Pipeline CR towards its desired state: a ConfigMap
 // holding the rendered Redpanda Connect config, and a Pod running the connect
 // image with that config mounted.
+//
+//nolint:gocyclo // Reconcile orchestrates many sequential lifecycle steps; splitting it would obscure the linear flow.
 func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 

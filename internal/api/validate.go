@@ -257,8 +257,9 @@ func ValidateProject(p *rpcv1alpha1.PipelineProject, pipelines []rpcv1alpha1.Pip
 			HasOutput:   (pp.Spec.RawYAML == "" && pp.Spec.Output.Type != "") || (pp.Spec.RawYAML != "" && rawTopKey(pp.Spec.RawYAML, "output")),
 		}
 	}
-	var out []ValidationError
-	for _, e := range projectroute.ValidateProject(p, views) {
+	verrs := projectroute.ValidateProject(p, views)
+	out := make([]ValidationError, 0, len(verrs))
+	for _, e := range verrs {
 		out = append(out, ValidationError{Path: "spec.routes", Message: e.Message})
 	}
 	return out
