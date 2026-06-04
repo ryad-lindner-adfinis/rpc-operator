@@ -5,15 +5,15 @@
 # and pass the new immutable "version" tag (e.g. 3). It pushes :latest AND :<version>.
 # The CI jobs (lint/test/docs) pin :<version> — NOT :latest — because the runner
 # caches a moving tag and never re-pulls it. So every rebuild MUST bump the version:
-#   1. Bump the version here and in lint.yml / test.yml / docs.yml (currently :2).
+#   1. Bump the version here and in lint.yml / test.yml / docs.yml (currently :3).
 #   2. Run "Build CI Image" with the matching version input.
 #
 # Manual fallback (on the Pi, for linux/arm64) — push both tags:
 #   docker build -f .forgejo/Dockerfile.ci \
 #     -t forgejo.thecloudroute.com/tom/rpc-operator/ci:latest \
-#     -t forgejo.thecloudroute.com/tom/rpc-operator/ci:2 .
+#     -t forgejo.thecloudroute.com/tom/rpc-operator/ci:3 .
 #   docker push forgejo.thecloudroute.com/tom/rpc-operator/ci:latest
-#   docker push forgejo.thecloudroute.com/tom/rpc-operator/ci:2
+#   docker push forgejo.thecloudroute.com/tom/rpc-operator/ci:3
 #
 # Rebuild whenever tool versions change (Go, golangci-lint, controller-gen, K8s).
 
@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     git \
+    make \
     python3.12 \
     python3-pip \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
@@ -68,4 +69,5 @@ RUN go version \
     && setup-envtest list | head -3 \
     && ls /usr/local/kubebuilder/current/ \
     && node --version \
+    && make --version \
     && python3.12 --version
