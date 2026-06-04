@@ -21,7 +21,7 @@ describe('pipelineBackTarget', () => {
 describe('editorBackTarget', () => {
   it('routes a detail-origin editor back to the pipeline detail', () => {
     expect(editorBackTarget({ kind: 'detail' }))
-      .toEqual({ section: 'pipelines', view: 'detail' })
+      .toEqual({ section: 'pipelines', pipelinesView: 'detail' })
   })
 
   it('routes a project-origin editor back to the project detail', () => {
@@ -31,6 +31,6 @@ describe('editorBackTarget', () => {
 
   it('routes the default (list-origin) editor back to the pipeline list', () => {
     expect(editorBackTarget({ kind: 'list' }))
-      .toEqual({ section: 'pipelines', view: 'list' })
+      .toEqual({ section: 'pipelines', pipelinesView: 'list' })
   })
 })

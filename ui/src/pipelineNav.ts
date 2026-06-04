@@ -34,14 +34,14 @@ export type EditorOrigin =
   | { kind: 'project'; name: string }  // New pipeline from a project
 
 export type EditorBackTarget =
-  | { section: 'pipelines'; view: 'list' | 'detail' }
+  | { section: 'pipelines'; pipelinesView: 'list' | 'detail' }
   | { section: 'projects'; projectsView: 'detail' }
 
 export function editorBackTarget(origin: EditorOrigin): EditorBackTarget {
   switch (origin.kind) {
-    case 'detail':  return { section: 'pipelines', view: 'detail' }
+    case 'detail':  return { section: 'pipelines', pipelinesView: 'detail' }
     case 'project': return { section: 'projects', projectsView: 'detail' }
-    case 'list':    return { section: 'pipelines', view: 'list' }
+    case 'list':    return { section: 'pipelines', pipelinesView: 'list' }
     default: {
       // Exhaustiveness guard: a new EditorOrigin.kind must be handled above.
       const _exhaustive: never = origin
