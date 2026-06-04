@@ -7,12 +7,12 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - 'docs/user/**'
-      - 'mkdocs.yml'
-      - 'requirements-docs.txt'
-      - 'api/v1alpha1/**'
-      - 'hack/docs-check-reference*'
-      - '.forgejo/workflows/docs.yml'
+      - "docs/user/**"
+      - "mkdocs.yml"
+      - "requirements-docs.txt"
+      - "api/v1alpha1/**"
+      - "hack/docs-check-reference*"
+      - ".forgejo/workflows/docs.yml"
 
 permissions:
   contents: read
@@ -22,7 +22,7 @@ jobs:
     name: mkdocs build --strict
     runs-on: docker
     container:
-      image: forgejo.thecloudroute.com/tom/rpc-operator/ci:3
+      image: forgejo.thecloudroute.com/tom/rpc-operator/ci:4
 
     steps:
       - name: Checkout
