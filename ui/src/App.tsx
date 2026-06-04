@@ -21,7 +21,7 @@ import { ProjectList } from './components/ProjectList'
 import { ProjectDetail } from './components/ProjectDetail'
 import { ProjectForm } from './components/ProjectForm'
 import type { CatalogComponent, Pipeline, PipelineSpec, PipelineProjectSpec, ProjectRoute } from './types'
-import { pipelineBackTarget, type PipelineOrigin } from './pipelineNav'
+import { pipelineBackTarget, editorBackTarget, type PipelineOrigin, type EditorOrigin } from './pipelineNav'
 
 const DEFAULT_SPEC: PipelineSpec = {
   input: { type: 'generate', config: { mapping: 'root = "hello world"', interval: '1s', count: 5 } },
@@ -40,6 +40,8 @@ export default function App() {
   const [selectedProjectName, setSelectedProjectName] = useState<string>('')
   const [showProjectForm, setShowProjectForm] = useState(false)
   const [pipelineOrigin, setPipelineOrigin] = useState<PipelineOrigin>({ kind: 'pipelines' })
+  const [editorOrigin, setEditorOrigin] = useState<EditorOrigin>({ kind: 'list' })
+  const [newPipelineProjectRef, setNewPipelineProjectRef] = useState('')
   const [projectDraftRoutes, setProjectDraftRoutes] = useState<ProjectRoute[]>([])
   const [projectDirty, setProjectDirty] = useState(false)
   const [namespace, setNamespace] = useState('rpc-operator-poc')
@@ -135,8 +137,10 @@ export default function App() {
   // Buttons that trigger these are also hidden, but this guards against accidental calls.
   const readOnly = me?.readOnly ?? false
 
-  async function handleEdit(pipeline: Pipeline) {
+  async function handleEdit(pipeline: Pipeline, origin: EditorOrigin = { kind: 'list' }) {
     if (readOnly) return
+    setEditorOrigin(origin)
+    setNewPipelineProjectRef('')
     try {
       const loaded = await getPipeline(pipeline.metadata.namespace, pipeline.metadata.name)
       setNamespace(loaded.metadata.namespace)
@@ -207,6 +211,32 @@ export default function App() {
     setPipelineOrigin({ kind: 'pipelines' })
   }
 
+  // Route the editor's Back button to wherever the editor was opened from.
+  function backFromEditor() {
+    const t = editorBackTarget(editorOrigin)
+    if (t.section === 'projects') {
+      setSection('projects')
+      setProjectsView('detail')
+    } else {
+      setSection('pipelines')
+      setView(t.pipelinesView)
+    }
+  }
+
+  // Route the editor's Save: a detail-origin edit returns to the REFRESHED
+  // detail (re-fetched, original pipelineOrigin preserved); a project-origin
+  // create returns to the project; otherwise the pipeline list.
+  function savedFromEditor() {
+    if (editorOrigin.kind === 'detail' && selectedPipeline) {
+      openPipelineByName(selectedPipeline.metadata.name, pipelineOrigin)
+    } else if (editorOrigin.kind === 'project') {
+      setSection('projects')
+      setProjectsView('detail')
+    } else {
+      setView('list')
+    }
+  }
+
   function openClusterByName(clusterName: string) {
     setSelectedClusterName(clusterName)
     setSection('clusters')
@@ -223,9 +253,13 @@ export default function App() {
     toast.success(`Created project ${projectName}`)
   }
 
-  // Open the pipeline editor with projectRef pre-filled (Part D consumes spec.projectRef).
+  // Open the pipeline editor with projectRef pre-filled (visual editor reads
+  // spec.projectRef; the raw editor reads initialProjectRef). Back/Save return
+  // to the project via editorOrigin.
   function handleAddProjectPipeline(projectName: string) {
     if (readOnly) return
+    setEditorOrigin({ kind: 'project', name: projectName })
+    setNewPipelineProjectRef(projectName)
     if (!visualEditorEnabled) {
       setEditPipeline(undefined)
       setName('my-pipeline')
@@ -293,6 +327,8 @@ export default function App() {
 
   function handleNew() {
     if (readOnly) return
+    setEditorOrigin({ kind: 'list' })
+    setNewPipelineProjectRef('')
     if (!visualEditorEnabled) { handleNewRaw(); return }
     setName('my-pipeline')
     setSpec(DEFAULT_SPEC)
@@ -302,6 +338,8 @@ export default function App() {
 
   function handleNewRaw() {
     if (readOnly) return
+    setEditorOrigin({ kind: 'list' })
+    setNewPipelineProjectRef('')
     setEditPipeline(undefined)
     setView('raw-editor')
   }
@@ -417,7 +455,7 @@ export default function App() {
                   pipeline={selectedPipeline}
                   readOnly={readOnly}
                   showLogs={!me.anonymous || me.anonymousLogs}
-                  onEdit={readOnly ? () => {} : () => handleEdit(selectedPipeline)}
+                  onEdit={readOnly ? () => {} : () => handleEdit(selectedPipeline, { kind: 'detail' })}
                   onBack={backFromPipelineDetail}
                   onStop={readOnly ? undefined : handleStop}
                   onRun={readOnly ? undefined : handleRun}
@@ -429,15 +467,16 @@ export default function App() {
                 <RawPipelineEditor
                   namespace={namespace}
                   editPipeline={editPipeline}
-                  onBack={() => setView('list')}
-                  onSaved={() => setView('list')}
+                  initialProjectRef={newPipelineProjectRef}
+                  onBack={backFromEditor}
+                  onSaved={savedFromEditor}
                 />
               )}
 
               {view === 'editor' && (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-                    <button onClick={() => setView('list')} style={backLinkStyle}>← Back</button>
+                    <button onClick={backFromEditor} style={backLinkStyle}>← Back</button>
                     <label style={{ fontSize: 14 }}>
                       Pipeline name&nbsp;
                       <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} />

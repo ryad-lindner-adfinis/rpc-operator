@@ -36,6 +36,8 @@ describe('RawPipelineEditor', () => {
 
   it('lets an editPipeline projectRef win over initialProjectRef', async () => {
     const editPipeline: Pipeline = {
+      apiVersion: 'rpc.operator.io/v1alpha1',
+      kind: 'Pipeline',
       metadata: { name: 'p1', namespace: 'default', resourceVersion: '7' },
       spec: { rawYAML: 'input: {}', projectRef: { name: 'orders' } },
     }
