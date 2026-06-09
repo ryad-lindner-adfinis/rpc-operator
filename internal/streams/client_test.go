@@ -2,9 +2,11 @@ package streams
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -76,6 +78,53 @@ func TestHTTPClient_EnsureStream_ErrorOn500(t *testing.T) {
 	c := NewHTTPClient()
 	if err := c.EnsureStream(context.Background(), srv.URL, "x", "input: {}\n"); err == nil {
 		t.Errorf("expected error on 500, got nil")
+	}
+}
+
+func TestHTTPClient_EnsureStream_400ReturnsConfigRejected(t *testing.T) {
+	// The streams API returns 400 with a lint-error body when the config is
+	// invalid. EnsureStream must surface this as a *ConfigRejectedError carrying
+	// the status and body so the controller can record it in status rather than
+	// requeue forever on a permanent error.
+	const lintBody = `{"lint_errors":["(1,1) field inputs not recognised"]}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(lintBody))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient()
+	err := c.EnsureStream(context.Background(), srv.URL, "bad", "inputs: {}\n")
+	if err == nil {
+		t.Fatalf("expected error on 400, got nil")
+	}
+	var rejected *ConfigRejectedError
+	if !errors.As(err, &rejected) {
+		t.Fatalf("expected *ConfigRejectedError, got %T: %v", err, err)
+	}
+	if rejected.Status != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", rejected.Status)
+	}
+	if !strings.Contains(rejected.Body, "field inputs not recognised") {
+		t.Errorf("expected lint body in error, got %q", rejected.Body)
+	}
+}
+
+func TestHTTPClient_EnsureStream_500IsNotConfigRejected(t *testing.T) {
+	// A 5xx is transient (server-side); it must NOT be a *ConfigRejectedError so
+	// the controller keeps requeuing/retrying instead of marking the pipeline failed.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+	c := NewHTTPClient()
+	err := c.EnsureStream(context.Background(), srv.URL, "x", "input: {}\n")
+	if err == nil {
+		t.Fatalf("expected error on 500, got nil")
+	}
+	var rejected *ConfigRejectedError
+	if errors.As(err, &rejected) {
+		t.Errorf("500 must not be a *ConfigRejectedError (transient), got %v", err)
 	}
 }
 

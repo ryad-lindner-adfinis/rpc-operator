@@ -22,6 +22,21 @@ import (
 	"time"
 )
 
+// ConfigRejectedError is returned by EnsureStream when the streams API rejects
+// the config with a 4xx status (e.g. lint errors). It is a permanent error:
+// retrying the identical config fails the same way, so callers should surface it
+// (record it in status) rather than requeue. 5xx and transport failures are
+// returned as plain errors because they are transient and worth retrying.
+type ConfigRejectedError struct {
+	StreamID string
+	Status   int
+	Body     string
+}
+
+func (e *ConfigRejectedError) Error() string {
+	return fmt.Sprintf("ensure stream %s: status %d: %s", e.StreamID, e.Status, e.Body)
+}
+
 // Client manages streams on a single Redpanda Connect instance addressed by its
 // base URL (e.g. http://etl-small-1.etl-small.ns.svc:4195).
 type Client interface {
@@ -59,6 +74,9 @@ func (c *HTTPClient) EnsureStream(ctx context.Context, podBaseURL, streamID, con
 		if err != nil {
 			return err
 		}
+	}
+	if status >= 400 && status < 500 {
+		return &ConfigRejectedError{StreamID: streamID, Status: status, Body: body}
 	}
 	if status >= 300 {
 		return fmt.Errorf("ensure stream %s: status %d: %s", streamID, status, body)

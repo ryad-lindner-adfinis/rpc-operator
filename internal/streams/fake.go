@@ -20,6 +20,10 @@ import (
 type FakeClient struct {
 	mu      sync.Mutex
 	streams map[string]map[string]string // podBaseURL -> streamID -> configYAML
+	// EnsureErr, when non-nil, is returned by EnsureStream instead of recording
+	// the stream — lets tests simulate a streams-API rejection (e.g. a 400 lint
+	// error via a *ConfigRejectedError).
+	EnsureErr error
 }
 
 var _ Client = (*FakeClient)(nil)
@@ -32,6 +36,9 @@ func NewFakeClient() *FakeClient {
 func (f *FakeClient) EnsureStream(_ context.Context, podBaseURL, streamID, configYAML string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.EnsureErr != nil {
+		return f.EnsureErr
+	}
 	if f.streams[podBaseURL] == nil {
 		f.streams[podBaseURL] = map[string]string{}
 	}

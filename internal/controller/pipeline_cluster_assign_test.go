@@ -198,6 +198,40 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		Expect(fake.Has("http://cs3-0.cs3."+namespace+".svc:4195", "ps3")).To(BeFalse())
 	})
 
+	It("marks Failed with StreamConfigInvalid when the streams API rejects the config", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "cr1", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "cr1", 0)
+
+		// Simulate the Redpanda Connect streams API rejecting an invalid config
+		// with a 400 lint error (the EnsureStream 4xx path).
+		fake.EnsureErr = &streams.ConfigRejectedError{
+			StreamID: "pr1", Status: 400,
+			Body: `{"lint_errors":["(1,1) field inputs not recognised"]}`,
+		}
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "pr1", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "cr1", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		// assign() asserts Reconcile returns no error — a rejected config must be
+		// recorded in status, not bubbled up as a requeue-forever error.
+		nn := assign("pr1")
+		got := &rpcv1alpha1.Pipeline{}
+		Expect(k8sClient.Get(ctx, nn, got)).To(Succeed())
+		Expect(got.Status.Phase).To(Equal(rpcv1alpha1.PhaseFailed))
+		cond := apimeta.FindStatusCondition(got.Status.Conditions, "Ready")
+		Expect(cond).NotTo(BeNil())
+		Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+		Expect(cond.Reason).To(Equal("StreamConfigInvalid"))
+		Expect(cond.Message).To(ContainSubstring("field inputs not recognised"))
+	})
+
 	It("marks Pending when the cluster has no ready instances", func() {
 		cluster := &rpcv1alpha1.PipelineCluster{
 			ObjectMeta: metav1.ObjectMeta{Name: "c3", Namespace: namespace},

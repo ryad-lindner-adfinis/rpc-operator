@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here.
 
+## Fix — Ungültige Stream-Config wird als Fehler sichtbar — 2026-06-09
+
+Lehnt die Redpanda-Connect-Streams-API die Config einer cluster- oder
+projektgebundenen Pipeline ab (HTTP 4xx, z. B. Lint-Fehler), wurde der Fehler
+bislang nur als Reconciler-Fehler geloggt und endlos requeued — der Status blieb
+auf dem alten Stand (z. B. `Stopped`) eingefroren, und der Nutzer sah nach „Run“
+keine Fehlermeldung. Jetzt wird die Ablehnung in den Pipeline-Status geschrieben.
+
+### Fixed
+
+- **Stream-Config-Ablehnung im Status** — `EnsureStream` liefert bei einem 4xx
+  einen typisierten `ConfigRejectedError`; der Reconciler setzt daraufhin
+  `phase=Failed` mit Bedingung `Ready=False`/`StreamConfigInvalid` und der
+  Lint-Meldung, statt in einer Fehlerschleife zu requeuen. 5xx/Transportfehler
+  bleiben transient (weiterhin Retry).
+
 ## F50.4 Navigation — Editor-Rückkehr zum Ursprung + Projekt-Vorauswahl — 2026-06-04
 
 Beim Bearbeiten einer aus einem Projekt geöffneten Pipeline führt „← Back“ jetzt

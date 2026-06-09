@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 	"github.com/insidegreen/rpc-operator-claude/internal/render"
+	"github.com/insidegreen/rpc-operator-claude/internal/streams"
 )
 
 // resyncInterval is how often an assigned (or cluster-not-ready) pipeline is
@@ -162,6 +164,14 @@ func (r *PipelineReconciler) handleClusterAssigned(
 	}
 	podURL := clusterPodURL(cluster.Name, pipe.Namespace, ordinal)
 	if err := r.Streams.EnsureStream(ctx, podURL, pipe.Name, body); err != nil {
+		// A 4xx rejection (e.g. lint errors) is permanent: record it in status so
+		// the user sees why the pipeline won't start, instead of requeuing forever
+		// on an error that an identical config will always reproduce. Transient
+		// failures (5xx, transport) are returned so controller-runtime retries.
+		var rejected *streams.ConfigRejectedError
+		if errors.As(err, &rejected) {
+			return r.markClusterFailed(ctx, pipe, "StreamConfigInvalid", rejected.Body)
+		}
 		return ctrl.Result{}, fmt.Errorf("ensure stream: %w", err)
 	}
 
