@@ -68,9 +68,11 @@ func isPodReady(pod *corev1.Pod) bool {
 }
 
 // aggregateDistribution derives the per-instance distribution from the cluster
-// CR, its instance pods, and the pipelines that reference it. Pure: no I/O. The
-// caller is responsible for passing only pods labelled for this cluster and only
-// pipelines whose clusterRef == cluster.Name. F47 Phase 3b.
+// CR, its instance pods, and the pipelines placed on it. Pure: no I/O. The caller
+// is responsible for passing only pods labelled for this cluster and only
+// pipelines that belong to it (clusterRef == cluster.Name or placed on it via
+// status.assignedCluster — the latter covers project-managed pipelines).
+// Placement onto an instance is keyed off status.assignedInstance. F47 Phase 3b.
 func aggregateDistribution(cluster *rpcv1alpha1.PipelineCluster, pods []corev1.Pod,
 	pipelines []rpcv1alpha1.Pipeline) ClusterDistribution {
 

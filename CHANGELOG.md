@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here.
 
+## Fix — Projekt-Pipelines erscheinen in der Cluster-Ansicht — 2026-06-09
+
+Eine projektgebundene Pipeline (`spec.projectRef`) läuft als Stream auf dem
+projektverwalteten Cluster, tauchte aber nicht in dessen Cluster-Ansicht
+(Instanz-Belegung) auf — die Zuordnung war nur an den Metriken zu erahnen. Grund:
+die Mitgliedschaft wurde nur über `spec.clusterRef` bestimmt, das bei
+Projekt-Pipelines leer ist. Jetzt zählen auch über den Status platzierte Pipelines.
+
+### Fixed
+
+- **Cluster-Ansicht zeigt Projekt-Pipelines** — `handleClusterInstances` nimmt
+  eine Pipeline nun auch dann in die Instanz-Belegung auf, wenn sie über
+  `status.assignedCluster` auf dem Cluster platziert ist (nicht nur bei
+  `spec.clusterRef == <cluster>`). Die Instanz-Zuordnung selbst erfolgt
+  unverändert über `status.assignedInstance`.
+
 ## Fix — Ungültige Stream-Config wird als Fehler sichtbar — 2026-06-09
 
 Lehnt die Redpanda-Connect-Streams-API die Config einer cluster- oder

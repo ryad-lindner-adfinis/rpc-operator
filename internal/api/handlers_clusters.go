@@ -163,9 +163,13 @@ func (s *Server) handleClusterInstances(w http.ResponseWriter, r *http.Request) 
 		writeK8sError(w, err)
 		return
 	}
+	// A pipeline belongs to this cluster's view if it declares it via clusterRef
+	// OR is placed on it via status (project-managed pipelines reference a project,
+	// not the cluster directly — their placement lands in status.assignedCluster).
 	assigned := make([]rpcv1alpha1.Pipeline, 0, len(pipelines.Items))
 	for i := range pipelines.Items {
-		if pipelines.Items[i].Spec.ClusterRef == name {
+		if pipelines.Items[i].Spec.ClusterRef == name ||
+			pipelines.Items[i].Status.AssignedCluster == name {
 			assigned = append(assigned, pipelines.Items[i])
 		}
 	}

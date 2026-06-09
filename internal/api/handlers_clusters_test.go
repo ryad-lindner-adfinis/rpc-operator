@@ -204,6 +204,50 @@ func TestHandlerClusterInstances(t *testing.T) {
 	}
 }
 
+// projectPipeline builds a project-managed Pipeline placed on a cluster. It has
+// no clusterRef; placement comes from spec.projectRef and is reflected only in
+// status.assignedCluster / assignedInstance (mirrors a real projectRef pipeline).
+func projectPipeline(name, project, cluster, instance string) *rpcv1alpha1.Pipeline {
+	return &rpcv1alpha1.Pipeline{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+		Spec:       rpcv1alpha1.PipelineSpec{ProjectRef: &rpcv1alpha1.ProjectRef{Name: project}},
+		Status:     rpcv1alpha1.PipelineStatus{AssignedCluster: cluster, AssignedInstance: instance},
+	}
+}
+
+func TestHandlerClusterInstances_IncludesProjectManaged(t *testing.T) {
+	// A project-managed pipeline placed on this cluster (via spec.projectRef →
+	// status.assignedCluster) must appear in the Cluster View, even though it has
+	// no spec.clusterRef.
+	objs := []client.Object{
+		clusterObj(1),
+		clusterPod("etl-0", "default", "etl", true),
+		projectPipeline("proj-pipe", "myproject", "etl", "etl-0"),
+	}
+	ts := newTestServer(t, objs...)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/namespaces/default/pipelineclusters/etl/instances")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	var dist api.ClusterDistribution
+	if err := json.NewDecoder(resp.Body).Decode(&dist); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(dist.Instances) != 1 {
+		t.Fatalf("expected 1 instance, got %d", len(dist.Instances))
+	}
+	got := dist.Instances[0].AssignedPipelines
+	if len(got) != 1 || got[0] != "proj-pipe" {
+		t.Errorf("expected project-managed pipeline on etl-0, got %v", got)
+	}
+}
+
 func TestHandlerClusterInstances_NotFound(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close()
