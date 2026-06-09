@@ -9,7 +9,7 @@ on:
           and update the matching tag referenced in lint.yml / test.yml / docs.yml.
         required: true
         type: string
-        default: '5'
+        default: '6'
 
 permissions:
   contents: read

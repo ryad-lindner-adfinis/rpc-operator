@@ -22,7 +22,7 @@ jobs:
     name: mkdocs build --strict
     runs-on: docker
     container:
-      image: forgejo.thecloudroute.com/tom/rpc-operator/ci:5
+      image: forgejo.thecloudroute.com/tom/rpc-operator/ci:6
 
     steps:
       - name: Checkout
@@ -44,7 +44,7 @@ jobs:
     name: docs-check-reference
     runs-on: docker
     container:
-      image: forgejo.thecloudroute.com/tom/rpc-operator/ci:5
+      image: forgejo.thecloudroute.com/tom/rpc-operator/ci:6
 
     steps:
       - name: Checkout
