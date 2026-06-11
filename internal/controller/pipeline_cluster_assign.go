@@ -184,7 +184,8 @@ func (r *PipelineReconciler) handleClusterAssigned(
 		msg = fmt.Sprintf("rescheduled from %s to %s", pipe.Status.AssignedInstance, instance)
 	}
 	cond := metav1.Condition{Type: "Ready", Status: metav1.ConditionTrue, Reason: reason, Message: msg}
-	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseRunning, cluster.Name, instance, pipe.Name, cond, resyncInterval)
+	sa := r.streamActiveCondition(ctx, podURL, pipe.Name)
+	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseRunning, cluster.Name, instance, pipe.Name, cond, &sa, resyncInterval)
 }
 
 // deleteAssignedStream deletes the pipeline's stream on its currently assigned
@@ -262,23 +263,53 @@ func (r *PipelineReconciler) deletePodModeChildren(ctx context.Context, pipe *rp
 
 func (r *PipelineReconciler) markClusterFailed(ctx context.Context, pipe *rpcv1alpha1.Pipeline, reason, msg string) (ctrl.Result, error) {
 	cond := metav1.Condition{Type: "Ready", Status: metav1.ConditionFalse, Reason: reason, Message: msg}
-	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseFailed, "", "", "", cond, 0)
+	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseFailed, "", "", "", cond, nil, 0)
 }
 
 func (r *PipelineReconciler) markClusterPending(ctx context.Context, pipe *rpcv1alpha1.Pipeline, reason, msg string) (ctrl.Result, error) {
 	cond := metav1.Condition{Type: "Ready", Status: metav1.ConditionFalse, Reason: reason, Message: msg}
-	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhasePending, "", "", "", cond, resyncInterval)
+	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhasePending, "", "", "", cond, nil, resyncInterval)
+}
+
+// streamActiveCondition reads the placed stream's runtime status and maps it to a
+// StreamActive condition. A read error never fails the reconcile: a vanished
+// stream becomes False/StreamMissing, any other error becomes Unknown/
+// StatusUnavailable (the stream is still placed, we just could not read it).
+func (r *PipelineReconciler) streamActiveCondition(ctx context.Context, podURL, streamID string) metav1.Condition {
+	st, err := r.Streams.GetStreamStatus(ctx, podURL, streamID)
+	switch {
+	case errors.Is(err, streams.ErrStreamNotFound):
+		return metav1.Condition{Type: "StreamActive", Status: metav1.ConditionFalse, Reason: "StreamMissing", Message: "stream not found on instance"}
+	case err != nil:
+		return metav1.Condition{Type: "StreamActive", Status: metav1.ConditionUnknown, Reason: "StatusUnavailable", Message: err.Error()}
+	case st.Active:
+		return metav1.Condition{Type: "StreamActive", Status: metav1.ConditionTrue, Reason: "Running", Message: "stream active"}
+	default:
+		return metav1.Condition{Type: "StreamActive", Status: metav1.ConditionFalse, Reason: "StreamNotActive", Message: "stream not active"}
+	}
 }
 
 // writeClusterStatus updates placement + phase + Ready condition only when changed.
+// streamActive carries the live StreamActive condition: non-nil is set, nil removes
+// any existing StreamActive (the pipeline is no longer placed). D2/D5.
 func (r *PipelineReconciler) writeClusterStatus(
 	ctx context.Context, pipe *rpcv1alpha1.Pipeline,
 	phase rpcv1alpha1.PipelinePhase, assignedCluster, assignedInstance, streamID string,
-	cond metav1.Condition, requeueAfter time.Duration,
+	cond metav1.Condition, streamActive *metav1.Condition, requeueAfter time.Duration,
 ) (ctrl.Result, error) {
 	existing := apimeta.FindStatusCondition(pipe.Status.Conditions, "Ready")
 	condChanged := existing == nil || existing.Status != cond.Status || existing.Reason != cond.Reason || existing.Message != cond.Message
-	if condChanged ||
+
+	existingSA := apimeta.FindStatusCondition(pipe.Status.Conditions, "StreamActive")
+	var saChanged bool
+	if streamActive == nil {
+		saChanged = existingSA != nil // removal only needed when present
+	} else {
+		saChanged = existingSA == nil || existingSA.Status != streamActive.Status ||
+			existingSA.Reason != streamActive.Reason || existingSA.Message != streamActive.Message
+	}
+
+	if condChanged || saChanged ||
 		pipe.Status.Phase != phase ||
 		pipe.Status.AssignedCluster != assignedCluster ||
 		pipe.Status.AssignedInstance != assignedInstance ||
@@ -292,6 +323,11 @@ func (r *PipelineReconciler) writeClusterStatus(
 		pipe.Status.PodName = ""
 		pipe.Status.ObservedGeneration = pipe.Generation
 		apimeta.SetStatusCondition(&pipe.Status.Conditions, cond)
+		if streamActive == nil {
+			apimeta.RemoveStatusCondition(&pipe.Status.Conditions, "StreamActive")
+		} else {
+			apimeta.SetStatusCondition(&pipe.Status.Conditions, *streamActive)
+		}
 		if err := r.Status().Update(ctx, pipe); err != nil {
 			if apierrors.IsConflict(err) {
 				return ctrl.Result{Requeue: true}, nil

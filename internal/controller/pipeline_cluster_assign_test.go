@@ -542,6 +542,137 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		Expect(k8sClient.Get(ctx, nn, pod)).To(Succeed())
 	})
 
+	It("sets StreamActive=True/Running for an active placed stream", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "ca1", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "ca1", 0)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p-active", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "ca1", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		nn := assign("p-active")
+		var p rpcv1alpha1.Pipeline
+		Expect(k8sClient.Get(ctx, nn, &p)).To(Succeed())
+
+		sa := apimeta.FindStatusCondition(p.Status.Conditions, "StreamActive")
+		Expect(sa).NotTo(BeNil())
+		Expect(sa.Status).To(Equal(metav1.ConditionTrue))
+		Expect(sa.Reason).To(Equal("Running"))
+		Expect(p.Status.Phase).To(Equal(rpcv1alpha1.PhaseRunning))
+		ready := apimeta.FindStatusCondition(p.Status.Conditions, "Ready")
+		Expect(ready.Status).To(Equal(metav1.ConditionTrue))
+	})
+
+	It("sets StreamActive=False/StreamNotActive without touching Ready/Phase", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "ca2", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "ca2", 0)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p-inactive", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "ca2", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		fake.SetStreamActive("p-inactive", false)
+		nn := assign("p-inactive")
+		var p rpcv1alpha1.Pipeline
+		Expect(k8sClient.Get(ctx, nn, &p)).To(Succeed())
+
+		sa := apimeta.FindStatusCondition(p.Status.Conditions, "StreamActive")
+		Expect(sa.Status).To(Equal(metav1.ConditionFalse))
+		Expect(sa.Reason).To(Equal("StreamNotActive"))
+		Expect(p.Status.Phase).To(Equal(rpcv1alpha1.PhaseRunning))
+		Expect(apimeta.FindStatusCondition(p.Status.Conditions, "Ready").Status).To(Equal(metav1.ConditionTrue))
+	})
+
+	It("sets StreamActive=Unknown/StatusUnavailable on a read error and keeps the placement", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "ca3", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "ca3", 0)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p-unknown", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "ca3", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		fake.GetErr = fmt.Errorf("boom")
+		nn := assign("p-unknown")
+		var p rpcv1alpha1.Pipeline
+		Expect(k8sClient.Get(ctx, nn, &p)).To(Succeed())
+
+		sa := apimeta.FindStatusCondition(p.Status.Conditions, "StreamActive")
+		Expect(sa.Status).To(Equal(metav1.ConditionUnknown))
+		Expect(sa.Reason).To(Equal("StatusUnavailable"))
+		Expect(p.Status.Phase).To(Equal(rpcv1alpha1.PhaseRunning))
+		Expect(p.Status.AssignedInstance).NotTo(BeEmpty())
+	})
+
+	It("sets StreamActive=False/StreamMissing when the stream has vanished", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "ca4", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "ca4", 0)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p-missing", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "ca4", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		fake.GetErr = streams.ErrStreamNotFound
+		nn := assign("p-missing")
+		var p rpcv1alpha1.Pipeline
+		Expect(k8sClient.Get(ctx, nn, &p)).To(Succeed())
+
+		sa := apimeta.FindStatusCondition(p.Status.Conditions, "StreamActive")
+		Expect(sa.Status).To(Equal(metav1.ConditionFalse))
+		Expect(sa.Reason).To(Equal("StreamMissing"))
+	})
+
+	It("removes StreamActive when placement fails (markClusterFailed)", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "ca5", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "ca5", 0)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p-then-fail", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "ca5", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		nn := assign("p-then-fail")
+		var p rpcv1alpha1.Pipeline
+		Expect(k8sClient.Get(ctx, nn, &p)).To(Succeed())
+		Expect(apimeta.FindStatusCondition(p.Status.Conditions, "StreamActive")).NotTo(BeNil())
+
+		fake.EnsureErr = &streams.ConfigRejectedError{StreamID: "p-then-fail", Status: 400, Body: "lint"}
+		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(k8sClient.Get(ctx, nn, &p)).To(Succeed())
+		Expect(p.Status.Phase).To(Equal(rpcv1alpha1.PhaseFailed))
+		Expect(apimeta.FindStatusCondition(p.Status.Conditions, "StreamActive")).To(BeNil())
+	})
+
 	AfterEach(func() {
 		pipes := &rpcv1alpha1.PipelineList{}
 		Expect(k8sClient.List(ctx, pipes, client.InNamespace(namespace))).To(Succeed())
