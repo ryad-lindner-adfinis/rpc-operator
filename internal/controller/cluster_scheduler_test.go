@@ -76,3 +76,16 @@ func TestPickInstance(t *testing.T) {
 		t.Errorf("expected ok=false with no ready instances")
 	}
 }
+
+// TestPickInstance_StickyDespiteLoadSkew guards the poison-stream cascade fix:
+// while a pipeline's assigned instance is in readyOrdinals it is never migrated,
+// even under heavy load skew. With the /ping readiness probe a functionally broken
+// stream no longer drops its pod from readyOrdinals, so no migration trigger exists.
+// See docs/superpowers/specs/2026-06-11-cluster-poison-stream-cascade-design.md.
+func TestPickInstance_StickyDespiteLoadSkew(t *testing.T) {
+	// c-0 is the current (ready) instance and heavily loaded; c-1 is idle.
+	got, ok := pickInstance("c-0", "c", []int32{0, 1}, map[int32]int{0: 9, 1: 0})
+	if !ok || got != 0 {
+		t.Fatalf("expected sticky placement on c-0 (no migration), got ordinal=%d ok=%v", got, ok)
+	}
+}
