@@ -70,6 +70,9 @@ func natsOutput(url, subject string) map[string]any {
 	return map[string]any{"nats_jetstream": map[string]any{
 		"urls":    []any{url},
 		"subject": subject,
+		"metadata": map[string]any{
+			"include_patterns": []any{".*"},
+		},
 	}}
 }
 
