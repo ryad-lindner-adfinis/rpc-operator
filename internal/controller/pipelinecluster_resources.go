@@ -53,7 +53,11 @@ func buildClusterService(clusterName, svcName string) *corev1.Service {
 		ObjectMeta: metav1.ObjectMeta{Name: svcName},
 		Spec: corev1.ServiceSpec{
 			ClusterIP: corev1.ClusterIPNone,
-			Selector:  map[string]string{clusterLabelKey: clusterName},
+			// The operator (control plane) must manage streams on instances even when
+			// their pod is NotReady; publish not-ready endpoints so per-pod DNS
+			// (<pod>.<svc>.<ns>.svc) keeps resolving regardless of readiness.
+			PublishNotReadyAddresses: true,
+			Selector:                 map[string]string{clusterLabelKey: clusterName},
 			Ports: []corev1.ServicePort{{
 				Name:       "http",
 				Port:       httpPort,

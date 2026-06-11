@@ -56,6 +56,9 @@ func TestBuildClusterService_Headless(t *testing.T) {
 	if len(svc.Spec.Ports) != 1 || svc.Spec.Ports[0].Port != httpPort {
 		t.Errorf("expected single port %d, got %v", httpPort, svc.Spec.Ports)
 	}
+	if !svc.Spec.PublishNotReadyAddresses {
+		t.Errorf("expected PublishNotReadyAddresses=true so the operator reaches NotReady pods by DNS")
+	}
 }
 
 func TestBuildClusterStatefulSet(t *testing.T) {
