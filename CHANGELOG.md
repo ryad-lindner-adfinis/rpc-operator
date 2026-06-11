@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented here.
 
+## Fix — Einzelne fehlerhafte Cluster-Pipeline macht PipelineCluster nicht mehr ungesund — 2026-06-11
+
+Eine einzelne Cluster-Pipeline mit ungültigem Ziel (z. B. unerreichbare Output-URL)
+führte dazu, dass alle Streams auf den betroffenen Cluster-Instanzen auf `active: false`
+fielen. Die Instanz-ReadinessProbe prüfte `/ready`, das den Health-Zustand sämtlicher
+Streams meldet — eine einzige „vergiftete" Pipeline genügte, um die gesamte Instanz als
+NotReady zu markieren. Daraufhin entfernte der Cluster-Controller gesunde Streams und
+eskalierte die Migration in eine vollständige Kaskade. Zusätzlich lieferte der headless
+Service nur Adressen gesunder Pods, sodass der Streams-API-Client keine Verbindung zur
+Instanz aufbauen konnte. Jetzt prüft die ReadinessProbe `/ping` (nur HTTP-Erreichbarkeit)
+statt `/ready`, und der headless Service publiziert auch NotReady-Adressen.
+
+### Fixed
+
+- **Poison-Stream-Kaskade eliminiert** — Die ReadinessProbe der Cluster-Instanz-Pods
+  zeigt auf `/ping` (reine HTTP-Erreichbarkeit) statt auf `/ready` (Stream-Health aller
+  Streams). Damit kann eine einzelne fehlerhafte Pipeline die Instanz nicht mehr als
+  NotReady kippen; gesunde Pipelines laufen weiter.
+- **Headless Service publiziert NotReady-Adressen** — `publishNotReadyAddresses: true`
+  stellt sicher, dass der Streams-API-Client auch dann eine Verbindung zur Instanz
+  aufbauen kann, wenn deren Readiness-Gate kurzzeitig nicht erfüllt ist.
+- **Migrations-Kaskade verhindert** — Durch die zwei obigen Maßnahmen unterbricht ein
+  einzelner fehlerhafter Stream nicht mehr die Platzierung oder Migration gesunder
+  Streams auf demselben Cluster.
+
 ## Fix — Lastverteilung platziert Projekt-Pipelines wieder verteilt — 2026-06-10
 
 Wird eine projektgebundene Pipeline gestoppt und neu gestartet, landete sie immer
