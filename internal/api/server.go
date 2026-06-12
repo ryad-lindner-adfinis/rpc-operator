@@ -211,6 +211,15 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/{name}/logs",
 		s.allowlist(s.handleLogStream))
 
+	// Connection visibility — anonymous-eligible (F42).
+	// Batch route registered before {name} wildcard routes; Go 1.22+ ServeMux
+	// already prefers the literal "connections" segment, but explicit ordering
+	// makes the intent clear.
+	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/connections",
+		s.authOrAnonymous(s.allowlist(s.handleNamespaceConnections)))
+	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/{name}/connections",
+		s.authOrAnonymous(s.allowlist(s.handleConnections)))
+
 	// Metrics — anonymous-eligible (F42).
 	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/{name}/metrics",
 		s.authOrAnonymous(s.allowlist(s.handleMetrics)))
