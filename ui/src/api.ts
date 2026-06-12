@@ -1,5 +1,6 @@
 import type {
-  CatalogComponent, ClusterDistribution, MetricQuery, MetricsResponse,
+  BatchConnectionsResponse, CatalogComponent, ClusterDistribution, ConnectionsResponse,
+  MetricQuery, MetricsResponse,
   Pipeline, PipelineCluster, PipelineClusterSpec, PipelineProject, PipelineProjectSpec,
   PipelineSpec, ValidateResponse,
 } from './types'
@@ -295,4 +296,25 @@ export async function updateProject(
 
 export async function deleteProject(namespace: string, name: string): Promise<void> {
   await request<void>('DELETE', `/namespaces/${namespace}/pipelineprojects/${name}`)
+}
+
+// Connection visibility — single pipeline (detail page).
+export async function getConnections(
+  namespace: string,
+  name: string,
+): Promise<ConnectionsResponse> {
+  return request<ConnectionsResponse>(
+    'GET',
+    `/namespaces/${namespace}/pipelines/${name}/connections`,
+  )
+}
+
+// Connection visibility — all running pipelines in namespace (list view).
+export async function getNamespaceConnections(
+  namespace: string,
+): Promise<BatchConnectionsResponse> {
+  return request<BatchConnectionsResponse>(
+    'GET',
+    `/namespaces/${namespace}/pipelines/connections`,
+  )
 }

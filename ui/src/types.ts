@@ -102,6 +102,15 @@ export interface MetricsResponse {
   datapoints: MetricsDatapoint[]
 }
 
+export type ConnState = 'up' | 'down' | 'unknown'
+
+export interface ConnectionsResponse {
+  input: ConnState
+  output: ConnState
+}
+
+export type BatchConnectionsResponse = Record<string, ConnectionsResponse>
+
 // Mirrors api/v1alpha1/pipelinecluster_types.go
 export interface PipelineClusterSpec {
   replicas?: number
