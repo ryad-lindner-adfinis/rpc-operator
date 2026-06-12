@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { toast } from 'sonner'
 import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Pencil, X } from 'lucide-react'
-import { listPipelines, deletePipeline } from '../api'
-import type { Pipeline } from '../types'
+import { getNamespaceConnections, listPipelines, deletePipeline } from '../api'
+import type { BatchConnectionsResponse, ConnectionsResponse, Pipeline } from '../types'
 
 interface Props {
   namespace: string
@@ -46,6 +46,7 @@ export function PipelineList({ namespace, readOnly = false, onEdit, onViewDetail
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [deletingNames, setDeletingNames] = useState<Set<string>>(new Set())
   const [pipelineToDelete, setPipelineToDelete] = useState<Pipeline | null>(null)
+  const [connMap, setConnMap] = useState<BatchConnectionsResponse>({})
 
   function handleSort(key: SortKey) {
     if (key === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -62,6 +63,17 @@ export function PipelineList({ namespace, readOnly = false, onEdit, onViewDetail
   useEffect(() => {
     load()
     const id = setInterval(load, 10_000)
+    return () => clearInterval(id)
+  }, [namespace])
+
+  useEffect(() => {
+    function loadConnections() {
+      getNamespaceConnections(namespace)
+        .then(setConnMap)
+        .catch(() => {}) // error → keep all grey (empty map)
+    }
+    loadConnections()
+    const id = setInterval(loadConnections, 10_000)
     return () => clearInterval(id)
   }, [namespace])
 
@@ -158,6 +170,12 @@ export function PipelineList({ namespace, readOnly = false, onEdit, onViewDetail
                   <td style={tdStyle}>
                     <PhaseBadge phase={isDeleting ? 'Deleting' : p.status?.phase} />
                     <ConditionHint conditions={p.status?.conditions} phase={p.status?.phase} />
+                    {!isDeleting && (
+                      <RowConnectionLight
+                        conn={connMap[p.metadata.name]}
+                        phase={p.status?.phase}
+                      />
+                    )}
                   </td>
                   <td style={{ ...tdStyle, color: '#666', fontFamily: 'monospace', fontSize: 12 }}>
                     {p.status?.podName ?? '—'}
@@ -269,6 +287,33 @@ function SortHeader({ label, col, sortKey, sortDir }: { label: string; col: Sort
       {label}
       <Icon size={12} color={active ? '#3b82f6' : '#ccc'} />
     </span>
+  )
+}
+
+function RowConnectionLight({ conn, phase }: { conn?: ConnectionsResponse; phase?: string }) {
+  if (phase !== 'Running') return null
+  const dotColor = !conn
+    ? '#94a3b8'
+    : conn.input === 'down' || conn.output === 'down'
+    ? '#dc2626'
+    : conn.input === 'up' && conn.output === 'up'
+    ? '#16a34a'
+    : '#94a3b8'
+  const title = !conn
+    ? 'Connection unknown'
+    : conn.input === 'down' || conn.output === 'down'
+    ? 'Connection issue'
+    : conn.input === 'up' && conn.output === 'up'
+    ? 'Input & output connected'
+    : 'Connection unknown'
+  return (
+    <span
+      title={title}
+      style={{
+        display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+        marginLeft: 6, verticalAlign: 'middle', background: dotColor,
+      }}
+    />
   )
 }
 
