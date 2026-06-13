@@ -31,14 +31,26 @@ type Retention struct {
 	MaxMsgs  int64
 }
 
-// StreamManager creates/updates/deletes JetStream streams for project routes.
-// natsURL is the project's client URL (projectroute.NATSURL). Implementations
-// must be safe for repeated calls (idempotent upsert).
+// KVConfig sizes a managed NATS KV bucket. Zero-value fields mean "default":
+// History 0 → 1, TTL/MaxBytes 0 → unlimited.
+type KVConfig struct {
+	TTL      time.Duration
+	History  uint8
+	MaxBytes int64
+}
+
+// StreamManager creates/updates/deletes JetStream streams and KV buckets for
+// project routes and cache resources. natsURL is the project's client URL
+// (projectroute.NATSURL). Implementations must be safe for repeated calls.
 type StreamManager interface {
 	// EnsureStream upserts a single-subject stream. Idempotent.
 	EnsureStream(ctx context.Context, natsURL, stream, subject string, r Retention) error
 	// DeleteStream removes a stream; a missing stream is treated as success.
 	DeleteStream(ctx context.Context, natsURL, stream string) error
+	// EnsureKV upserts a NATS KV bucket. Idempotent.
+	EnsureKV(ctx context.Context, natsURL, bucket string, cfg KVConfig) error
+	// DeleteKV removes a KV bucket; a missing bucket is treated as success.
+	DeleteKV(ctx context.Context, natsURL, bucket string) error
 }
 
 // JSManager is the production StreamManager over nats.go/JetStream. It dials per
@@ -97,6 +109,41 @@ func (m *JSManager) DeleteStream(ctx context.Context, natsURL, stream string) er
 
 	err = js.DeleteStream(ctx, stream)
 	if errors.Is(err, jetstream.ErrStreamNotFound) {
+		return nil
+	}
+	return err
+}
+
+func (m *JSManager) EnsureKV(ctx context.Context, natsURL, bucket string, cfg KVConfig) error {
+	nc, js, err := m.connect(natsURL)
+	if err != nil {
+		return err
+	}
+	defer nc.Close()
+
+	history := cfg.History
+	if history == 0 {
+		history = 1
+	}
+	_, err = js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+		Bucket:   bucket,
+		TTL:      cfg.TTL,
+		History:  history,
+		MaxBytes: cfg.MaxBytes,
+		Storage:  jetstream.FileStorage,
+	})
+	return err
+}
+
+func (m *JSManager) DeleteKV(ctx context.Context, natsURL, bucket string) error {
+	nc, js, err := m.connect(natsURL)
+	if err != nil {
+		return err
+	}
+	defer nc.Close()
+
+	err = js.DeleteKeyValue(ctx, bucket)
+	if errors.Is(err, jetstream.ErrBucketNotFound) {
 		return nil
 	}
 	return err
