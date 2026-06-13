@@ -22,3 +22,15 @@ spec:
       maxBytes: "1Gi"
   # Routes are stored but inert in F50.1 — see F50.2 for wiring + filtering.
   routes: []
+  # cacheResources make named cache resources available to every pipeline in
+  # the project. Pipelines reference them by label (e.g. cache.resource: shared-state).
+  # F51 — see docs/superpowers/specs/2026-06-12-f51-project-cache-resources-design.md
+  cacheResources:
+    - name: shared-state         # referenced in pipelines as: cache: { resource: shared-state }
+      natsKV:
+        history: 1
+        ttl: 1h
+    # - name: redis-cache        # custom example (operator pushes verbatim, provisions nothing)
+    #   config:
+    #     redis:
+    #       url: redis://redis.default.svc:6379

@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## Feature — F51 Projekt-Cache-Resources — 2026-06-13
+
+### Hinzugefügt
+- **F51 — Projekt-Cache-Resources:** `PipelineProject.spec.cacheResources` macht Cache-Resources
+  projektweit für alle Pipelines verfügbar. Variante `natsKV` (Operator legt das KV-Bucket
+  `rpc-<projekt>-<name>` an und rendert die `nats_kv`-Config) oder `config` (beliebiger nativer
+  Cache-Block, z. B. Redis, unverändert gepusht). Resources werden über die Streams-Resources-API
+  (`POST /resources/cache/{label}`) auf jede Cluster-Instanz verteilt; Pod-Neustarts lösen ein
+  Re-Push aus (Selbstheilung). Bare-ClusterRef-Pipelines erhalten das Feature bewusst nicht
+  (siehe ADR-0005); Own-Pod-Pipelines nutzen `cache_resources` weiterhin direkt via `rawYAML`.
+  Secret-Support ist für v1 deferred (F48-Funktionen sind der Reuse-Pfad).
+
 ## Feature — Pipeline Input/Output Connection Visibility — 2026-06-12
 
 ### Hinzugefügt

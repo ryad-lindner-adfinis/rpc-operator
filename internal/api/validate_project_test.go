@@ -37,6 +37,16 @@ func TestValidatePipeline_ProjectRefAllowsEmptyOutput(t *testing.T) {
 	}
 }
 
+func TestValidateProject_CacheResourceVariantRequiredViaAPI(t *testing.T) {
+	p := &rpcv1alpha1.PipelineProject{Spec: rpcv1alpha1.PipelineProjectSpec{
+		CacheResources: []rpcv1alpha1.ProjectCacheResource{{Name: "c1"}}, // neither natsKV nor config
+	}}
+	p.Name = orderProject
+	if errs := api.ValidateProject(p, nil); len(errs) == 0 {
+		t.Fatal("expected API validation error for cache resource missing a variant")
+	}
+}
+
 func TestValidateProject_DelegatesMessages(t *testing.T) {
 	proj := &rpcv1alpha1.PipelineProject{Spec: rpcv1alpha1.PipelineProjectSpec{
 		Routes: []rpcv1alpha1.ProjectRoute{
