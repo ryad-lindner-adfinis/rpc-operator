@@ -20,6 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // PipelineProjectSpec defines the desired state of a PipelineProject — a
@@ -44,6 +45,15 @@ type PipelineProjectSpec struct {
 	// stream provisioning and Pipeline I/O rewriting from this table.
 	// +optional
 	Routes []ProjectRoute `json:"routes,omitempty"`
+
+	// CacheResources are project-global Redpanda Connect cache resources the
+	// operator pushes to every instance of the project's cluster. Every pipeline
+	// in the project can reference them by label (e.g. processors.cache.resource).
+	// Each entry is exactly one of natsKV (managed) or config (custom). F51.
+	// +optional
+	// +listType=map
+	// +listMapKey=name
+	CacheResources []ProjectCacheResource `json:"cacheResources,omitempty"`
 }
 
 // ProjectClusterSpec passes through sizing to the managed PipelineCluster.
@@ -142,6 +152,65 @@ type ProjectRouteTarget struct {
 	When string `json:"when,omitempty"`
 }
 
+// ProjectCacheResource is one project-global cache resource. Exactly one of
+// NatsKV (managed: operator provisions the KV bucket and renders the config) or
+// Config (custom: a native RPC cache config block pushed verbatim) must be set.
+type ProjectCacheResource struct {
+	// Name is the RPC resource label pipelines reference. Unique per project.
+	// +kubebuilder:validation:Pattern=`^[a-z]([-a-z0-9]*[a-z0-9])?$`
+	// +kubebuilder:validation:MaxLength=63
+	Name string `json:"name"`
+
+	// NatsKV configures a managed NATS KV cache. The operator creates the bucket
+	// rpc-<project>-<name> on the project NATS and renders the nats_kv config.
+	// +optional
+	NatsKV *ProjectNATSKVCache `json:"natsKV,omitempty"`
+
+	// Config is a native RPC cache config block (e.g. {redis: {url: ...}}) pushed
+	// verbatim. The operator provisions nothing for custom resources.
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Schemaless
+	// +optional
+	Config runtime.RawExtension `json:"config,omitempty"`
+}
+
+// ProjectNATSKVCache sizes the managed KV bucket. All fields optional.
+type ProjectNATSKVCache struct {
+	// TTL expires each key after this duration. Unset = no expiry.
+	// +optional
+	TTL *metav1.Duration `json:"ttl,omitempty"`
+
+	// History is the number of historical values kept per key. Default 1.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=64
+	// +optional
+	History *int64 `json:"history,omitempty"`
+
+	// MaxBytes caps the bucket's total on-disk size. Unset = unlimited.
+	// +optional
+	MaxBytes *resource.Quantity `json:"maxBytes,omitempty"`
+}
+
+// ProjectCacheResourceStatus reports one cache resource's provisioning state.
+type ProjectCacheResourceStatus struct {
+	// Name matches spec.cacheResources[].name and is the join key.
+	Name string `json:"name"`
+
+	// Bucket is the managed KV bucket name (natsKV only): rpc-<project>-<name>.
+	// +optional
+	Bucket string `json:"bucket,omitempty"`
+
+	// Phase is Ready or Failed.
+	// +optional
+	Phase string `json:"phase,omitempty"`
+
+	// Conditions report per-resource problems (e.g. BucketFailed, PushFailed).
+	// +listType=map
+	// +listMapKey=type
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
 // PipelineProjectPhase reports the high-level lifecycle stage.
 // +kubebuilder:validation:Enum=Provisioning;Ready;Degraded;Deleting
 type PipelineProjectPhase string
@@ -170,6 +239,10 @@ type PipelineProjectStatus struct {
 	// Routes mirrors per-route status (populated by Phase 2).
 	// +optional
 	Routes []ProjectRouteStatus `json:"routes,omitempty"`
+
+	// CacheResources mirrors per-cache-resource status. F51.
+	// +optional
+	CacheResources []ProjectCacheResourceStatus `json:"cacheResources,omitempty"`
 
 	// ObservedGeneration is the .metadata.generation this status reflects.
 	// +optional

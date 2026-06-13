@@ -61,6 +61,61 @@ spec:
               and NATS JetStream StatefulSet. Phase 1 only provisions the runtime; routes
               are accepted in the spec but not yet acted on.
             properties:
+              cacheResources:
+                description: |-
+                  CacheResources are project-global Redpanda Connect cache resources the
+                  operator pushes to every instance of the project's cluster. Every pipeline
+                  in the project can reference them by label (e.g. processors.cache.resource).
+                  Each entry is exactly one of natsKV (managed) or config (custom). F51.
+                items:
+                  description: |-
+                    ProjectCacheResource is one project-global cache resource. Exactly one of
+                    NatsKV (managed: operator provisions the KV bucket and renders the config) or
+                    Config (custom: a native RPC cache config block pushed verbatim) must be set.
+                  properties:
+                    config:
+                      description: |-
+                        Config is a native RPC cache config block (e.g. {redis: {url: ...}}) pushed
+                        verbatim. The operator provisions nothing for custom resources.
+                      x-kubernetes-preserve-unknown-fields: true
+                    name:
+                      description: Name is the RPC resource label pipelines reference.
+                        Unique per project.
+                      maxLength: 63
+                      pattern: ^[a-z]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                    natsKV:
+                      description: |-
+                        NatsKV configures a managed NATS KV cache. The operator creates the bucket
+                        rpc-<project>-<name> on the project NATS and renders the nats_kv config.
+                      properties:
+                        history:
+                          description: History is the number of historical values
+                            kept per key. Default 1.
+                          format: int64
+                          maximum: 64
+                          minimum: 1
+                          type: integer
+                        maxBytes:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: MaxBytes caps the bucket's total on-disk size.
+                            Unset = unlimited.
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        ttl:
+                          description: TTL expires each key after this duration. Unset
+                            = no expiry.
+                          type: string
+                      type: object
+                  required:
+                  - name
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
               cluster:
                 description: Cluster sizes the underlying PipelineCluster. All fields
                   optional.
@@ -258,6 +313,89 @@ spec:
           status:
             description: PipelineProjectStatus describes the observed state.
             properties:
+              cacheResources:
+                description: CacheResources mirrors per-cache-resource status. F51.
+                items:
+                  description: ProjectCacheResourceStatus reports one cache resource's
+                    provisioning state.
+                  properties:
+                    bucket:
+                      description: 'Bucket is the managed KV bucket name (natsKV only):
+                        rpc-<project>-<name>.'
+                      type: string
+                    conditions:
+                      description: Conditions report per-resource problems (e.g. BucketFailed,
+                        PushFailed).
+                      items:
+                        description: Condition contains details for one aspect of
+                          the current state of this API Resource.
+                        properties:
+                          lastTransitionTime:
+                            description: |-
+                              lastTransitionTime is the last time the condition transitioned from one status to another.
+                              This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                            format: date-time
+                            type: string
+                          message:
+                            description: |-
+                              message is a human readable message indicating details about the transition.
+                              This may be an empty string.
+                            maxLength: 32768
+                            type: string
+                          observedGeneration:
+                            description: |-
+                              observedGeneration represents the .metadata.generation that the condition was set based upon.
+                              For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                              with respect to the current state of the instance.
+                            format: int64
+                            minimum: 0
+                            type: integer
+                          reason:
+                            description: |-
+                              reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                              Producers of specific condition types may define expected values and meanings for this field,
+                              and whether the values are considered a guaranteed API.
+                              The value should be a CamelCase string.
+                              This field may not be empty.
+                            maxLength: 1024
+                            minLength: 1
+                            pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                            type: string
+                          status:
+                            description: status of the condition, one of True, False,
+                              Unknown.
+                            enum:
+                            - "True"
+                            - "False"
+                            - Unknown
+                            type: string
+                          type:
+                            description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                            maxLength: 316
+                            pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                            type: string
+                        required:
+                        - lastTransitionTime
+                        - message
+                        - reason
+                        - status
+                        - type
+                        type: object
+                      type: array
+                      x-kubernetes-list-map-keys:
+                      - type
+                      x-kubernetes-list-type: map
+                    name:
+                      description: Name matches spec.cacheResources[].name and is
+                        the join key.
+                      type: string
+                    phase:
+                      description: Phase is Ready or Failed.
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
               cluster:
                 description: Cluster reports the managed PipelineCluster's readiness.
                 properties:
