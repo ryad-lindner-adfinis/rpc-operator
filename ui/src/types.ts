@@ -166,7 +166,33 @@ export interface ClusterDistribution {
   stalePlacements: StalePlacement[]
 }
 
-// Mirrors api/v1alpha1/pipelineproject_types.go
+// Mirrors api/v1alpha1/pipelineproject_types.go (F51).
+export interface ProjectNATSKVCache {
+  ttl?: string       // metav1.Duration string, e.g. "1h"
+  history?: number   // 1..64
+  maxBytes?: string  // resource.Quantity string, e.g. "100Mi"
+}
+
+export interface ProjectCacheResource {
+  name: string
+  /** Managed NATS KV cache. Mutually exclusive with `config`. */
+  natsKV?: ProjectNATSKVCache
+  /** Custom native cache config block pushed verbatim. Mutually exclusive with `natsKV`. */
+  config?: unknown
+}
+
+export interface ProjectCacheResourceStatus {
+  name: string
+  bucket?: string    // rpc-<project>-<name> (natsKV only)
+  phase?: string     // "Ready" | "Failed"
+  conditions?: Array<{
+    type: string
+    status: string
+    message?: string
+    reason?: string
+    lastTransitionTime?: string
+  }>
+}
 
 export interface ProjectRouteTarget {
   pipeline: string
@@ -203,6 +229,7 @@ export interface PipelineProjectSpec {
   cluster?: ProjectClusterSpec
   nats?: ProjectNATSSpec
   routes?: ProjectRoute[]
+  cacheResources?: ProjectCacheResource[]
 }
 
 export interface ProjectChildStatus {
@@ -240,6 +267,7 @@ export interface PipelineProject {
     cluster?: ProjectChildStatus
     nats?: ProjectChildStatus
     routes?: ProjectRouteStatus[]
+    cacheResources?: ProjectCacheResourceStatus[]
     observedGeneration?: number
     conditions?: Array<{
       type: string
