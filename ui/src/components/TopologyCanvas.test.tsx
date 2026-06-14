@@ -25,3 +25,23 @@ describe('TopologyCanvas', () => {
     expect(container.querySelector('[data-selected="true"]')).toBeTruthy()
   })
 })
+
+describe('TopologyCanvas caches', () => {
+  const withCache: PipelineProject = {
+    metadata: { name: 'orders', namespace: 'default' },
+    spec: {
+      routes: [{ name: 'fan', from: 'ingest', to: [{ pipeline: 'warehouse' }] }],
+      cacheResources: [{ name: 'shared', natsKV: {} }],
+    },
+  }
+
+  it('renders the cache node label and the operator label on its edge', () => {
+    const topo = computeLayout(buildTopology(withCache, ['ingest', 'warehouse'],
+      [{ pipeline: 'warehouse', cache: 'shared', operators: ['get', 'set'] }]))
+    const { container } = render(<TopologyCanvas topology={topo} selectedId={null} onSelect={() => {}} />)
+    expect(screen.getByText('shared')).toBeInTheDocument()
+    expect(screen.getByText('get, set')).toBeInTheDocument()
+    // dashed cache edge present
+    expect(container.querySelector('path[stroke-dasharray]')).toBeTruthy()
+  })
+})
