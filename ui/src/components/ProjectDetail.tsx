@@ -1,9 +1,14 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getProject, listPipelines, updateProject } from '../api'
-import type { PipelineProject, ProjectRoute, ProjectRouteStatus, ValidationError } from '../types'
+import type {
+  Pipeline, PipelineProject, ProjectRoute, ProjectRouteStatus,
+  ProjectCacheResource, ProjectCacheResourceStatus, ValidationError,
+} from '../types'
 import { buildTopology, computeLayout, type TopoNode } from '../topology'
+import { detectCacheUses, type CacheUse } from '../cacheUsage'
 import { TopologyCanvas } from './TopologyCanvas'
 import { RouterDrawer } from './RouterDrawer'
+import { CacheDrawer } from './CacheDrawer'
 
 interface Props {
   namespace: string
@@ -20,6 +25,8 @@ interface Props {
   dirty?: boolean
   setDraftRoutes?: (routes: ProjectRoute[]) => void
   setDirty?: (dirty: boolean) => void
+  draftCaches?: ProjectCacheResource[]
+  setDraftCaches?: (caches: ProjectCacheResource[]) => void
 }
 
 const subjectOf = (project: string, route: string) => `rpc.${project}.${route}`
@@ -29,9 +36,10 @@ export function ProjectDetail({
   namespace, name, readOnly, onBack, onOpenPipeline, onAddPipeline,
   draftRoutes: draftRoutesProp, dirty: dirtyProp,
   setDraftRoutes: setDraftRoutesProp, setDirty: setDirtyProp,
+  draftCaches: draftCachesProp, setDraftCaches: setDraftCachesProp,
 }: Props) {
   const [project, setProject] = useState<PipelineProject>()
-  const [members, setMembers] = useState<string[]>([])
+  const [memberPipelines, setMemberPipelines] = useState<Pipeline[]>([])
   const [error, setError] = useState<string>()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // null = creating a new route, a route = editing, undefined = drawer closed.
@@ -42,6 +50,11 @@ export function ProjectDetail({
   const setDraftRoutes = setDraftRoutesProp ?? setLocalDraftRoutes
   const dirty = dirtyProp ?? localDirty
   const setDirty = setDirtyProp ?? setLocalDirty
+  const [localDraftCaches, setLocalDraftCaches] = useState<ProjectCacheResource[]>([])
+  const draftCaches = draftCachesProp ?? localDraftCaches
+  const setDraftCaches = setDraftCachesProp ?? setLocalDraftCaches
+  const [drawerCache, setDrawerCache] = useState<ProjectCacheResource | null | undefined>(undefined)
+  const [prefillCacheName, setPrefillCacheName] = useState<string | undefined>(undefined)
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
   const [saveError, setSaveError] = useState<string | undefined>(undefined)
   const [saving, setSaving] = useState(false)
@@ -52,8 +65,8 @@ export function ProjectDetail({
       .catch(e => setError((e as Error).message))
     // Pipelines attached via projectRef — shown on the map even when unrouted.
     listPipelines(namespace)
-      .then(ps => setMembers(ps.filter(p => p.spec.projectRef?.name === name).map(p => p.metadata.name)))
-      .catch(() => setMembers([]))
+      .then(ps => setMemberPipelines(ps.filter(p => p.spec.projectRef?.name === name)))
+      .catch(() => setMemberPipelines([]))
   }, [namespace, name])
 
   useEffect(() => {
@@ -65,7 +78,10 @@ export function ProjectDetail({
   // Seed the draft from the server while the user hasn't diverged. While dirty,
   // the poll still refreshes `project` (status/banner) but never clobbers edits.
   useEffect(() => {
-    if (project && !dirty) setDraftRoutes(project.spec.routes ?? [])
+    if (project && !dirty) {
+      setDraftRoutes(project.spec.routes ?? [])
+      setDraftCaches(project.spec.cacheResources ?? [])
+    }
   }, [project, dirty])
 
   if (error) return (
@@ -77,8 +93,10 @@ export function ProjectDetail({
   if (!project) return <p style={{ color: '#888' }}>Loading project…</p>
 
   const serverRoutes = project.spec.routes ?? []
-  const draftProject = { ...project, spec: { ...project.spec, routes: draftRoutes } }
-  const topo = computeLayout(buildTopology(draftProject, members))
+  const members = memberPipelines.map(p => p.metadata.name)
+  const cacheUses = detectCacheUses(memberPipelines)
+  const draftProject = { ...project, spec: { ...project.spec, routes: draftRoutes, cacheResources: draftCaches } }
+  const topo = computeLayout(buildTopology(draftProject, members, cacheUses))
   const selectedNode = topo.nodes.find(n => n.id === selectedId) ?? null
   const pipelineNames = topo.nodes.filter(n => n.kind === 'pipeline').map(n => n.id)
   // Surface the operator's verdict: any False status condition is a problem the
@@ -100,6 +118,21 @@ export function ProjectDetail({
     setSelectedId(null)
   }
 
+  function stageCache(updated: ProjectCacheResource) {
+    const rest = draftCaches.filter(c => c.name !== updated.name)
+    setDraftCaches([...rest, updated])
+    setDirty(true)
+    setDrawerCache(undefined)
+    setPrefillCacheName(undefined)
+  }
+
+  function removeCache(cacheName: string) {
+    if (!window.confirm(`Remove cache "${cacheName}" from the draft?`)) return
+    setDraftCaches(draftCaches.filter(c => c.name !== cacheName))
+    setDirty(true)
+    setSelectedId(null)
+  }
+
   async function commitDraft() {
     if (!project) return
     setSaving(true)
@@ -107,7 +140,8 @@ export function ProjectDetail({
     setSaveError(undefined)
     try {
       await updateProject(namespace, name,
-        { ...project.spec, routes: draftRoutes }, project.metadata.resourceVersion)
+        { ...project.spec, routes: draftRoutes, cacheResources: draftCaches },
+        project.metadata.resourceVersion)
       setDirty(false)
       load()
     } catch (e) {
@@ -127,13 +161,14 @@ export function ProjectDetail({
 
   // Session-only draft: leaving the map loses it. Confirm when dirty.
   function guardLeave(action: () => void) {
-    if (dirty && !window.confirm('You have unsaved route changes that will be lost. Continue?')) return
+    if (dirty && !window.confirm('You have unsaved changes that will be lost. Continue?')) return
     action()
   }
 
   function discardDraft() {
     if (!project) return
     setDraftRoutes(project.spec.routes ?? [])
+    setDraftCaches(project.spec.cacheResources ?? [])
     setDirty(false)
     setValidationErrors([])
     setSaveError(undefined)
@@ -158,6 +193,7 @@ export function ProjectDetail({
             )}
             <button onClick={() => guardLeave(() => onAddPipeline(name))} style={toolbarBtnStyle}>+ Pipeline</button>
             <button onClick={() => setDrawerRoute(null)} style={toolbarBtnStyle}>+ Router</button>
+            <button onClick={() => { setPrefillCacheName(undefined); setDrawerCache(null) }} style={toolbarBtnStyle}>+ Cache</button>
           </div>
         )}
       </div>
@@ -220,6 +256,18 @@ export function ProjectDetail({
               onEdit={r => setDrawerRoute(r)}
               onDelete={removeRoute}
             />
+          ) : selectedNode.kind === 'cache' ? (
+            <CachePanel
+              node={selectedNode}
+              cache={draftCaches.find(c => c.name === selectedNode.cacheName)}
+              status={project.status?.cacheResources?.find(cs => cs.name === selectedNode.cacheName)}
+              uses={cacheUses.filter(u => u.cache === selectedNode.cacheName)}
+              readOnly={readOnly}
+              onEdit={c => setDrawerCache(c)}
+              onDelete={removeCache}
+              onAddUndeclared={n => { setPrefillCacheName(n); setDrawerCache(null) }}
+              onOpenPipeline={onOpenPipeline}
+            />
           ) : (
             <PipelinePanel node={selectedNode} routes={draftRoutes} onOpen={onOpenPipeline} />
           )}
@@ -232,6 +280,15 @@ export function ProjectDetail({
           route={drawerRoute ?? undefined}
           onSave={stageRoute}
           onClose={() => setDrawerRoute(undefined)}
+        />
+      )}
+      {drawerCache !== undefined && (
+        <CacheDrawer
+          cache={drawerCache ?? undefined}
+          prefillName={prefillCacheName}
+          existingNames={draftCaches.map(c => c.name)}
+          onSave={stageCache}
+          onClose={() => { setDrawerCache(undefined); setPrefillCacheName(undefined) }}
         />
       )}
     </div>
@@ -268,6 +325,70 @@ function RouterPanel({ project, route, status, unsaved, readOnly, onEdit, onDele
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
           <button onClick={() => onEdit(route)} style={toolbarBtnStyle}>Edit router</button>
           <button onClick={() => onDelete(route.name)} style={deleteBtnStyle}>Remove from draft</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CachePanel({ node, cache, status, uses, readOnly, onEdit, onDelete, onAddUndeclared, onOpenPipeline }: {
+  node: TopoNode
+  cache?: ProjectCacheResource
+  status?: ProjectCacheResourceStatus
+  uses: CacheUse[]
+  readOnly: boolean
+  onEdit: (c: ProjectCacheResource) => void
+  onDelete: (name: string) => void
+  onAddUndeclared: (name: string) => void
+  onOpenPipeline: (p: string) => void
+}) {
+  const undeclared = !!node.undeclared
+  const failed = (status?.conditions ?? []).filter(c => c.status === 'False')
+  const kind = cache?.config !== undefined ? 'custom' : 'managed'
+  return (
+    <div style={{ fontSize: 13 }}>
+      <h3 style={panelTitleStyle}>Cache: {node.cacheName}</h3>
+      {undeclared ? (
+        <div style={routeProblemStyle}>
+          Referenced by a pipeline but not declared in this project.
+        </div>
+      ) : (
+        <>
+          <Row label="Type" value={kind} />
+          {status?.bucket && <Row label="Bucket" value={status.bucket} />}
+          <Row label="Status" value={status?.phase || 'not provisioned (unsaved)'} />
+          {failed.map(c => (
+            <div key={c.type} style={routeProblemStyle}>{c.reason ? `${c.reason}: ` : ''}{c.message}</div>
+          ))}
+        </>
+      )}
+      <div style={{ marginTop: 10, fontWeight: 600 }}>Used by</div>
+      {uses.length === 0 ? (
+        <p style={{ color: '#888', margin: '4px 0' }}>No pipelines use this cache.</p>
+      ) : (
+        <table style={{ width: '100%', fontSize: 12, marginTop: 4 }}>
+          <tbody>
+            {uses.map(u => (
+              <tr key={u.pipeline}>
+                <td style={{ padding: '3px 0' }}>
+                  <button onClick={() => onOpenPipeline(u.pipeline)} style={linkBtnStyle}>{u.pipeline}</button>
+                </td>
+                <td style={{ padding: '3px 0', color: '#64748b' }}>{u.operators.join(', ')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {!readOnly && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          {undeclared ? (
+            <button onClick={() => onAddUndeclared(node.cacheName!)} style={toolbarBtnStyle}>Add as project cache</button>
+          ) : (
+            <>
+              <button onClick={() => cache && onEdit(cache)} style={toolbarBtnStyle}>Edit cache</button>
+              <button onClick={() => onDelete(node.cacheName!)} style={deleteBtnStyle}>Remove from draft</button>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -338,4 +459,7 @@ const dirtyPillStyle: React.CSSProperties = {
 const routeProblemStyle: React.CSSProperties = {
   background: '#fef2f2', color: '#b91c1c', border: '1px solid #fca5a5',
   borderRadius: 6, padding: '6px 8px', fontSize: 12, marginTop: 8,
+}
+const linkBtnStyle: React.CSSProperties = {
+  border: 'none', background: 'none', padding: 0, color: '#3b82f6', cursor: 'pointer', fontSize: 12,
 }

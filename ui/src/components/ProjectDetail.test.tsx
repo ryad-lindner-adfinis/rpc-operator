@@ -5,7 +5,7 @@ import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { useState } from 'react'
 import { ProjectDetail } from './ProjectDetail'
-import type { PipelineProject, ProjectRoute } from '../types'
+import type { PipelineProject, Pipeline, ProjectRoute } from '../types'
 
 const orders: PipelineProject = {
   metadata: { name: 'orders', namespace: 'default' },
@@ -15,6 +15,11 @@ const orders: PipelineProject = {
 
 const server = setupServer(
   http.get('/api/v1/namespaces/default/pipelineprojects/orders', () => HttpResponse.json(orders)),
+  http.get('/api/v1/namespaces/default/pipelines', () => HttpResponse.json({ items: [
+    { metadata: { name: 'warehouse', namespace: 'default' },
+      spec: { projectRef: { name: 'orders' },
+        rawYAML: 'pipeline:\n  processors:\n    - cache: { resource: shared, operator: get, key: k }\n' } },
+  ] })),
 )
 beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }))
 afterEach(() => server.resetHandlers())
@@ -238,5 +243,39 @@ describe('ProjectDetail', () => {
     // though the server GET still returns 'fan' (the seed must not clobber a dirty draft).
     await waitFor(() => expect(screen.getByText(/Unsaved changes/i)).toBeInTheDocument())
     expect(screen.queryByText('fan')).toBeNull()
+  })
+})
+
+describe('ProjectDetail caches', () => {
+  const withCache: PipelineProject = {
+    metadata: { name: 'orders', namespace: 'default', resourceVersion: '1' },
+    spec: {
+      routes: [{ name: 'fan', from: 'ingest', to: [{ pipeline: 'warehouse' }] }],
+      cacheResources: [{ name: 'shared', natsKV: {} }],
+    },
+    status: {
+      phase: 'Ready', cluster: { name: 'orders-cluster', ready: 1, total: 1 },
+      cacheResources: [{ name: 'shared', bucket: 'rpc-orders-shared', phase: 'Ready' }],
+    },
+  }
+
+  it('shows the cache node, its bucket/status and the "used by" list', async () => {
+    server.use(http.get('/api/v1/namespaces/default/pipelineprojects/orders', () => HttpResponse.json(withCache)))
+    render(<ProjectDetail namespace="default" name="orders" readOnly={false}
+      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+    await waitFor(() => expect(screen.getByText('shared')).toBeInTheDocument())
+    await userEvent.click(screen.getByText('shared'))
+    expect(screen.getByText('rpc-orders-shared')).toBeInTheDocument()
+    expect(screen.getAllByText('get').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('warehouse').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('opens the cache drawer from the "+ Cache" button', async () => {
+    server.use(http.get('/api/v1/namespaces/default/pipelineprojects/orders', () => HttpResponse.json(withCache)))
+    render(<ProjectDetail namespace="default" name="orders" readOnly={false}
+      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+    await waitFor(() => expect(screen.getByText('shared')).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /\+ Cache/i }))
+    expect(screen.getByRole('button', { name: /Save cache/i })).toBeInTheDocument()
   })
 })
