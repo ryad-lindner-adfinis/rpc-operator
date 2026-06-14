@@ -20,7 +20,7 @@ import { ClusterDetail } from './components/ClusterDetail'
 import { ProjectList } from './components/ProjectList'
 import { ProjectDetail } from './components/ProjectDetail'
 import { ProjectForm } from './components/ProjectForm'
-import type { CatalogComponent, Pipeline, PipelineSpec, PipelineProjectSpec, ProjectRoute } from './types'
+import type { CatalogComponent, Pipeline, PipelineSpec, PipelineProjectSpec, ProjectRoute, ProjectCacheResource } from './types'
 import { pipelineBackTarget, editorBackTarget, type PipelineOrigin, type EditorOrigin } from './pipelineNav'
 
 const DEFAULT_SPEC: PipelineSpec = {
@@ -43,6 +43,7 @@ export default function App() {
   const [editorOrigin, setEditorOrigin] = useState<EditorOrigin>({ kind: 'list' })
   const [newPipelineProjectRef, setNewPipelineProjectRef] = useState('')
   const [projectDraftRoutes, setProjectDraftRoutes] = useState<ProjectRoute[]>([])
+  const [projectDraftCaches, setProjectDraftCaches] = useState<ProjectCacheResource[]>([])
   const [projectDirty, setProjectDirty] = useState(false)
   const [namespace, setNamespace] = useState('rpc-operator-poc')
   const [name, setName] = useState('my-pipeline')
@@ -252,6 +253,7 @@ export default function App() {
     setSelectedProjectName(projectName)
     setProjectsView('detail')
     setProjectDraftRoutes([])
+    setProjectDraftCaches([])
     setProjectDirty(false)
     toast.success(`Created project ${projectName}`)
   }
@@ -512,7 +514,7 @@ export default function App() {
           {section === 'projects' && projectsView === 'list' && (
             <ProjectList
               namespace={namespace}
-              onViewDetail={name => { setSelectedProjectName(name); setProjectsView('detail'); setProjectDraftRoutes([]); setProjectDirty(false) }}
+              onViewDetail={name => { setSelectedProjectName(name); setProjectsView('detail'); setProjectDraftRoutes([]); setProjectDraftCaches([]); setProjectDirty(false) }}
               onNew={readOnly ? undefined : () => setShowProjectForm(true)}
             />
           )}
@@ -526,8 +528,10 @@ export default function App() {
               onOpenPipeline={p => openPipelineByName(p, { kind: 'project', name: selectedProjectName })}
               onAddPipeline={handleAddProjectPipeline}
               draftRoutes={projectDraftRoutes}
+              draftCaches={projectDraftCaches}
               dirty={projectDirty}
               setDraftRoutes={setProjectDraftRoutes}
+              setDraftCaches={setProjectDraftCaches}
               setDirty={setProjectDirty}
             />
           )}
