@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## Feature — F52 Cache-Verwaltung in der Projekt-Map (UI) — 2026-06-14
+
+### Hinzugefügt
+- **F52 — Cache-Verwaltung in der Projekt-Map (UI):** Cache-Resources lassen sich in der
+  tactical Map eines Projekts anlegen, bearbeiten und entfernen (Button „+ Cache", `CacheDrawer`
+  für managed `natsKV` und custom YAML-Config). Die Map zeigt als grünen Datastore-Zylinder je
+  Cache und einen gestrichelten Pfeil je Pipeline→Cache inkl. Operatoren (get/set/add/delete/exists).
+  Nutzung wird aus `rawYAML`-Pipelines (cache-Prozessor) erkannt; nicht deklarierte Referenzen
+  erscheinen als Warn-Phantomknoten. Reines UI-Feature auf Basis von F51 (keine Backend-Änderung).
+
 ## Feature — F51 Projekt-Cache-Resources — 2026-06-13
 
 ### Hinzugefügt
