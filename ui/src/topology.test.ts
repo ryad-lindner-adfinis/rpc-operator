@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildTopology, computeLayout } from './topology'
 import type { PipelineProject } from './types'
+import type { CacheUse } from './cacheUsage'
 
 function proj(routes: PipelineProject['spec']['routes']): PipelineProject {
   return { metadata: { name: 'orders', namespace: 'default' }, spec: { routes } }
@@ -67,5 +68,50 @@ describe('computeLayout', () => {
     expect(t.nodes.every(n => n.y >= 0)).toBe(true)
     expect(t.width).toBeGreaterThan(0)
     expect(t.height).toBeGreaterThan(0)
+  })
+})
+
+describe('buildTopology with caches', () => {
+  function projWithCaches(): PipelineProject {
+    return {
+      metadata: { name: 'orders', namespace: 'default' },
+      spec: {
+        routes: [{ name: 'fan', from: 'ingest', to: [{ pipeline: 'warehouse' }] }],
+        cacheResources: [{ name: 'shared', natsKV: {} }, { name: 'unused', natsKV: {} }],
+      },
+    }
+  }
+
+  it('adds a cache node per declared cache and a dashed edge per use', () => {
+    const t = buildTopology(projWithCaches(), ['ingest', 'warehouse'],
+      [{ pipeline: 'warehouse', cache: 'shared', operators: ['get', 'set'] }])
+    expect(t.nodes.filter(n => n.kind === 'cache').map(n => n.id).sort())
+      .toEqual(['cache:shared', 'cache:unused'])
+    const edge = t.edges.find(e => e.kind === 'cache')
+    expect(edge).toMatchObject({ from: 'warehouse', to: 'cache:shared', operators: ['get', 'set'] })
+  })
+
+  it('marks a used-but-undeclared cache as a phantom node', () => {
+    const t = buildTopology(projWithCaches(), ['ingest', 'warehouse'],
+      [{ pipeline: 'warehouse', cache: 'ghost', operators: ['get'] }])
+    const ghost = t.nodes.find(n => n.id === 'cache:ghost')
+    expect(ghost).toMatchObject({ kind: 'cache', cacheName: 'ghost', undeclared: true })
+  })
+
+  it('does not let cache edges change route layering', () => {
+    const t = computeLayout(buildTopology(projWithCaches(), ['ingest', 'warehouse'],
+      [{ pipeline: 'warehouse', cache: 'shared', operators: ['get'] }]))
+    const x = (id: string) => t.nodes.find(n => n.id === id)!.x
+    // ingest -> router -> warehouse layering is unchanged.
+    expect(x('ingest')).toBeLessThan(x('route:fan'))
+    expect(x('route:fan')).toBeLessThan(x('warehouse'))
+  })
+
+  it('places cache nodes in a band below the route DAG', () => {
+    const t = computeLayout(buildTopology(projWithCaches(), ['ingest', 'warehouse'],
+      [{ pipeline: 'warehouse', cache: 'shared', operators: ['get'] }]))
+    const routeMaxY = Math.max(...t.nodes.filter(n => n.kind !== 'cache').map(n => n.y))
+    const cacheY = t.nodes.find(n => n.id === 'cache:shared')!.y
+    expect(cacheY).toBeGreaterThan(routeMaxY)
   })
 })
