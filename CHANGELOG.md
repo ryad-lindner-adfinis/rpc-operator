@@ -16,6 +16,11 @@ All notable changes to this project are documented here.
   mit der Beschriftung `output` (zusätzlich zu evtl. Prozessor-Operatoren, z. B. `set, output`).
   Erkennung weiterhin nur aus `rawYAML`; Cache-Inputs gibt es in Redpanda Connect nicht. Reines
   UI-Feature (keine Backend-Änderung).
+- **F51.x — Multilevel-Caches in der Map:** Referenziert ein custom `multilevel`-Cache andere
+  Projekt-Caches (`config: { multilevel: [hot, kv] }`), erscheinen diese Beziehungen jetzt als
+  gestrichelte `Cache→Cache`-Bögen mit Ebenen-Label (`L1`, `L2`, …) im Cache-Band; das CachePanel
+  listet die Layer geordnet. Nicht deklarierte Layer erscheinen als Warn-Phantomknoten. Reines
+  UI-Feature (keine Backend-Änderung).
 
 ## Feature — F51 Projekt-Cache-Resources — 2026-06-13
 
