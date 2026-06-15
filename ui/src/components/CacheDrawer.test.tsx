@@ -51,6 +51,14 @@ describe('CacheDrawer', () => {
     expect(screen.getByLabelText(/History/i)).toHaveValue(2)
   })
 
+  it('does not wrap the custom editor in a <label> (focus-stealing regression)', async () => {
+    // A <label> re-dispatches clicks to Monaco's inner <textarea>, stealing focus
+    // so the editor can't be typed in. The editor must have no <label> ancestor.
+    render(<CacheDrawer existingNames={[]} onSave={() => {}} onClose={() => {}} />)
+    await userEvent.click(screen.getByRole('radio', { name: /Custom/i }))
+    expect(screen.getByLabelText('custom-config').closest('label')).toBeNull()
+  })
+
   it('rejects a custom config that is a YAML array', async () => {
     const onSave = vi.fn()
     render(<CacheDrawer existingNames={[]} onSave={onSave} onClose={() => {}} />)

@@ -105,8 +105,10 @@ export function CacheDrawer({ cache, prefillName, existingNames, onSave, onClose
             </label>
           </>
         ) : (
-          <label style={{ ...labelStyle, marginTop: 12 }}>
-            Custom config (YAML cache block)
+          // NB: must NOT be a <label> — a label re-dispatches clicks to Monaco's
+          // inner <textarea>, stealing focus so the editor can't be typed in.
+          <div style={{ ...labelStyle, marginTop: 12 }}>
+            <span>Custom config (YAML cache block)</span>
             <div style={{ border: '1px solid #ccc', borderRadius: 4, overflow: 'hidden', marginTop: 4 }}>
               <Suspense fallback={<div style={{ padding: 12, color: '#888' }}>Loading editor…</div>}>
                 <MonacoEditor
@@ -118,7 +120,7 @@ export function CacheDrawer({ cache, prefillName, existingNames, onSave, onClose
                 />
               </Suspense>
             </div>
-          </label>
+          </div>
         )}
 
         {error && <div style={{ color: '#dc2626', fontSize: 13, marginTop: 12 }}>{error}</div>}
