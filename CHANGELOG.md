@@ -2,6 +2,7 @@
 
 All notable changes to this project are documented here.
 
+<<<<<<< HEAD
 ## Feature — F52 Cache-Verwaltung in der Projekt-Map (UI) — 2026-06-14
 
 ### Hinzugefügt
@@ -21,6 +22,28 @@ All notable changes to this project are documented here.
   gestrichelte `Cache→Cache`-Bögen mit Ebenen-Label (`L1`, `L2`, …) im Cache-Band; das CachePanel
   listet die Layer geordnet. Nicht deklarierte Layer erscheinen als Warn-Phantomknoten. Reines
   UI-Feature (keine Backend-Änderung).
+=======
+## Fix — Cache-Deploy-Fehler sichtbar + Self-Heal — 2026-06-15
+
+### Behoben
+- **502-Init-Failures werden jetzt im Status sichtbar:** Redpanda Connect meldet
+  Komponenten-Init-Fehler (z. B. ein `multilevel`-Cache mit weniger als zwei Ebenen,
+  oder ein Output/Processor, der eine noch nicht registrierte `cache_resource`
+  referenziert) als HTTP 502 mit `failed to init`-Body. Der Streams-Client wertete
+  bisher nur 4xx als permanenten `ConfigRejectedError`; ein 502 galt als transient,
+  sodass die Reconciler endlos requeuten, ohne den Fehler je in `.status` zu schreiben
+  (keine Fehlermeldung im UI). `EnsureStream`/`EnsureCacheResource` klassifizieren ein
+  502 mit `failed to init`-Body nun als `ConfigRejectedError` → `PipelineProject`
+  zeigt `status.cacheResources[].phase=Failed` mit Begründung, betroffene Pipelines
+  `StreamConfigInvalid`. Ein bodyloses Gateway-502 (neustartender Pod) bleibt transient.
+- **Member-Pipelines deployen sich selbst neu, wenn eine Projekt-Cache-Resource
+  verfügbar wird:** Der Pipeline-Controller watcht jetzt `PipelineProject` und
+  re-enqueued Member-Pipelines bei Generation-Bump oder Änderung von
+  `status.cacheResources`. Eine Pipeline, deren Stream-Deploy an einer noch nicht
+  registrierten Cache-Resource scheiterte, bleibt damit nicht mehr bis zum nächsten
+  Error-Backoff hängen. Ein Prädikat verhindert einen Reconcile-Sturm durch
+  unrelated Status-Churn.
+>>>>>>> 40a65c0 (docs(changelog): Cache-Deploy-Fehler sichtbar + Member-Self-Heal)
 
 ## Feature — F51 Projekt-Cache-Resources — 2026-06-13
 
