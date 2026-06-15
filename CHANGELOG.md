@@ -11,6 +11,11 @@ All notable changes to this project are documented here.
   Cache und einen gestrichelten Pfeil je Pipeline→Cache inkl. Operatoren (get/set/add/delete/exists).
   Nutzung wird aus `rawYAML`-Pipelines (cache-Prozessor) erkannt; nicht deklarierte Referenzen
   erscheinen als Warn-Phantomknoten. Reines UI-Feature auf Basis von F51 (keine Backend-Änderung).
+- **F52.1 — Cache-Outputs in der Map:** Schreibt eine Pipeline ihren Output in einen Projekt-Cache
+  (`output: { cache: { target: … } }`), erscheint dies jetzt als gestrichelte `Pipeline→Cache`-Kante
+  mit der Beschriftung `output` (zusätzlich zu evtl. Prozessor-Operatoren, z. B. `set, output`).
+  Erkennung weiterhin nur aus `rawYAML`; Cache-Inputs gibt es in Redpanda Connect nicht. Reines
+  UI-Feature (keine Backend-Änderung).
 
 ## Feature — F51 Projekt-Cache-Resources — 2026-06-13
 
