@@ -8,10 +8,14 @@ export interface CacheUse {
 }
 
 /**
- * Recursively collect (resource, operator) pairs from `cache:` mappings that
- * carry BOTH fields — i.e. the Redpanda Connect `cache` processor. The cache
- * input (resource, no operator), cache output (uses `target`), and `cached`
- * processor (`cache` is a string) all fail this test and are skipped.
+ * Recursively collect (resource, operator) pairs from `cache:` mappings.
+ * Two shapes are recognised:
+ *   - the `cache` processor — has BOTH `resource` and `operator` strings;
+ *     recorded with its real operator (get/set/add/delete/exists).
+ *   - the `cache` output — has a `target` string (no operator); recorded with
+ *     the synthetic operator 'output', the cache being its write-sink.
+ * The cache input (no `target`, no `operator`) and the `cached` processor
+ * (`cache` is a string) both fail these tests and are skipped.
  */
 function collect(node: unknown, out: Array<{ resource: string; operator: string }>): void {
   if (Array.isArray(node)) {
@@ -25,6 +29,8 @@ function collect(node: unknown, out: Array<{ resource: string; operator: string 
       const cc = c as Record<string, unknown>
       if (typeof cc.resource === 'string' && typeof cc.operator === 'string') {
         out.push({ resource: cc.resource, operator: cc.operator })
+      } else if (typeof cc.target === 'string') {
+        out.push({ resource: cc.target, operator: 'output' })
       }
     }
     for (const v of Object.values(obj)) collect(v, out)
@@ -61,7 +67,9 @@ export function detectCacheUses(pipelines: Pipeline[]): CacheUse[] {
   const uses: CacheUse[] = []
   for (const [pipeline, byCache] of grouped) {
     for (const [cache, ops] of byCache) {
-      uses.push({ pipeline, cache, operators: [...ops].sort() })
+      const sorted = [...ops].filter(o => o !== 'output').sort()
+      if (ops.has('output')) sorted.push('output')
+      uses.push({ pipeline, cache, operators: sorted })
     }
   }
   return uses

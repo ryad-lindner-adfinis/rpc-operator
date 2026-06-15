@@ -47,14 +47,41 @@ pipeline:
     ])
   })
 
-  it('ignores cache input (no operator) and cache output (uses target)', () => {
-    const p = raw('io', `
+  it('ignores cache input (no operator, no target)', () => {
+    const p = raw('in', `
 input:
   cache: { resource: shared, key: k }
+`)
+    expect(detectCacheUses([p])).toEqual([])
+  })
+
+  it('detects a cache output via its target field', () => {
+    const p = raw('sink', `
 output:
   cache: { target: shared, key: k }
 `)
-    expect(detectCacheUses([p])).toEqual([])
+    expect(detectCacheUses([p])).toEqual([{ pipeline: 'sink', cache: 'shared', operators: ['output'] }])
+  })
+
+  it('appends output last after sorted processor operators on the same cache', () => {
+    const p = raw('rw', `
+pipeline:
+  processors:
+    - cache: { resource: shared, operator: set, key: k }
+output:
+  cache: { target: shared, key: k }
+`)
+    expect(detectCacheUses([p])).toEqual([{ pipeline: 'rw', cache: 'shared', operators: ['set', 'output'] }])
+  })
+
+  it('finds a cache output nested under a broker output', () => {
+    const p = raw('broker', `
+output:
+  broker:
+    outputs:
+      - cache: { target: b, key: k }
+`)
+    expect(detectCacheUses([p])).toEqual([{ pipeline: 'broker', cache: 'b', operators: ['output'] }])
   })
 
   it('ignores the cached processor (cache is a string)', () => {
