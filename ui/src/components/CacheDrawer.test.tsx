@@ -51,6 +51,15 @@ describe('CacheDrawer', () => {
     expect(screen.getByLabelText(/History/i)).toHaveValue(2)
   })
 
+  it('shows managed NATS KV form when config is null (API serialises RawExtension as null)', () => {
+    // runtime.RawExtension serialises to JSON null when empty; the UI must treat
+    // null the same as undefined — both mean "no custom config set".
+    render(<CacheDrawer cache={{ name: 'shared', natsKV: { ttl: '2h' }, config: null as unknown }}
+      existingNames={['shared']} onSave={() => {}} onClose={() => {}} />)
+    expect(screen.getByLabelText(/Managed \(NATS KV\)/i)).toBeChecked()
+    expect(screen.getByLabelText(/TTL/i)).toHaveValue('2h')
+  })
+
   it('does not wrap the custom editor in a <label> (focus-stealing regression)', async () => {
     // A <label> re-dispatches clicks to Monaco's inner <textarea>, stealing focus
     // so the editor can't be typed in. The editor must have no <label> ancestor.

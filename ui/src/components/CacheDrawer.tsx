@@ -20,12 +20,12 @@ type Kind = 'managed' | 'custom'
 export function CacheDrawer({ cache, prefillName, existingNames, onSave, onClose }: Props) {
   const editing = !!cache
   const [name, setName] = useState(cache?.name ?? prefillName ?? '')
-  const [kind, setKind] = useState<Kind>(cache?.config !== undefined ? 'custom' : 'managed')
+  const [kind, setKind] = useState<Kind>(cache?.config != null ? 'custom' : 'managed')
   const [ttl, setTtl] = useState(cache?.natsKV?.ttl ?? '')
   const [history, setHistory] = useState(cache?.natsKV?.history != null ? String(cache.natsKV.history) : '')
   const [maxBytes, setMaxBytes] = useState(cache?.natsKV?.maxBytes ?? '')
   const [customText, setCustomText] = useState(
-    cache?.config !== undefined ? yaml.dump(cache.config) : '',
+    cache?.config != null ? yaml.dump(cache.config) : '',
   )
   const [error, setError] = useState<string>()
 
