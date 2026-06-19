@@ -202,6 +202,15 @@ export default function App() {
     }
   }
 
+  async function editPipelineByName(pipelineName: string, origin: EditorOrigin) {
+    try {
+      const loaded = await getPipeline(namespace, pipelineName)
+      handleEdit(loaded, origin)
+    } catch (e) {
+      toast.error('Could not open pipeline: ' + (e as Error).message)
+    }
+  }
+
   // Route the pipeline-detail Back button to wherever it was opened from.
   function backFromPipelineDetail() {
     const t = pipelineBackTarget(pipelineOrigin)
@@ -526,6 +535,7 @@ export default function App() {
               readOnly={readOnly}
               onBack={() => setProjectsView('list')}
               onOpenPipeline={p => openPipelineByName(p, { kind: 'project', name: selectedProjectName })}
+              onEditPipeline={p => editPipelineByName(p, { kind: 'project', name: selectedProjectName })}
               onAddPipeline={handleAddProjectPipeline}
               draftRoutes={projectDraftRoutes}
               draftCaches={projectDraftCaches}

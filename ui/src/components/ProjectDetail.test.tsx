@@ -28,7 +28,7 @@ afterAll(() => server.close())
 describe('ProjectDetail', () => {
   it('loads and renders the topology + side panel for a selected node', async () => {
     render(<ProjectDetail namespace="default" name="orders" readOnly={false}
-      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+      onBack={() => {}} onOpenPipeline={() => {}} onEditPipeline={() => {}} onAddPipeline={() => {}} />)
     await waitFor(() => expect(screen.getByText('ingest')).toBeInTheDocument())
     await userEvent.click(screen.getByText('fan'))               // select the router node
     expect(screen.getByText(/Subject/i)).toBeInTheDocument()     // router side panel
@@ -50,7 +50,7 @@ describe('ProjectDetail', () => {
       http.get('/api/v1/namespaces/default/pipelineprojects/orders', () => HttpResponse.json(degraded)),
     )
     render(<ProjectDetail namespace="default" name="orders" readOnly={false}
-      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+      onBack={() => {}} onOpenPipeline={() => {}} onEditPipeline={() => {}} onAddPipeline={() => {}} />)
     await waitFor(() => expect(screen.getByText('Project degraded')).toBeInTheDocument())
     expect(screen.getByText(/input is managed by the project's routes/i)).toBeInTheDocument()
   })
@@ -65,7 +65,7 @@ describe('ProjectDetail', () => {
       }),
     )
     render(<ProjectDetail namespace="default" name="orders" readOnly={false}
-      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+      onBack={() => {}} onOpenPipeline={() => {}} onEditPipeline={() => {}} onAddPipeline={() => {}} />)
     await waitFor(() => expect(screen.getByText('fan')).toBeInTheDocument())
 
     await userEvent.click(screen.getByText('fan'))                  // select router node
@@ -91,7 +91,7 @@ describe('ProjectDetail', () => {
       }),
     )
     render(<ProjectDetail namespace="default" name="orders" readOnly={false}
-      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+      onBack={() => {}} onOpenPipeline={() => {}} onEditPipeline={() => {}} onAddPipeline={() => {}} />)
     await waitFor(() => expect(screen.getByText('fan')).toBeInTheDocument())
 
     await userEvent.click(screen.getByText('fan'))
@@ -112,7 +112,7 @@ describe('ProjectDetail', () => {
         )),
     )
     render(<ProjectDetail namespace="default" name="orders" readOnly={false}
-      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+      onBack={() => {}} onOpenPipeline={() => {}} onEditPipeline={() => {}} onAddPipeline={() => {}} />)
     await waitFor(() => expect(screen.getByText('fan')).toBeInTheDocument())
 
     await userEvent.click(screen.getByText('fan'))
@@ -131,7 +131,7 @@ describe('ProjectDetail', () => {
         HttpResponse.json({ error: 'conflict' }, { status: 409 })),
     )
     render(<ProjectDetail namespace="default" name="orders" readOnly={false}
-      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+      onBack={() => {}} onOpenPipeline={() => {}} onEditPipeline={() => {}} onAddPipeline={() => {}} />)
     await waitFor(() => expect(screen.getByText('fan')).toBeInTheDocument())
 
     await userEvent.click(screen.getByText('fan'))
@@ -147,7 +147,7 @@ describe('ProjectDetail', () => {
   it('Discard reverts the draft to the server routes', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<ProjectDetail namespace="default" name="orders" readOnly={false}
-      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+      onBack={() => {}} onOpenPipeline={() => {}} onEditPipeline={() => {}} onAddPipeline={() => {}} />)
     await waitFor(() => expect(screen.getByText('fan')).toBeInTheDocument())
 
     await userEvent.click(screen.getByText('fan'))
@@ -163,7 +163,7 @@ describe('ProjectDetail', () => {
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)  // allow the remove
     const onBack = vi.fn()
     render(<ProjectDetail namespace="default" name="orders" readOnly={false}
-      onBack={onBack} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+      onBack={onBack} onOpenPipeline={() => {}} onEditPipeline={() => {}} onAddPipeline={() => {}} />)
     await waitFor(() => expect(screen.getByText('fan')).toBeInTheDocument())
 
     await userEvent.click(screen.getByText('fan'))
@@ -184,7 +184,7 @@ describe('ProjectDetail', () => {
 
     // Controlled dirty draft that still contains the route (so 'ingest' is a node).
     render(<ProjectDetail namespace="default" name="orders" readOnly={false}
-      onBack={() => {}} onOpenPipeline={onOpenPipeline} onAddPipeline={() => {}}
+      onBack={() => {}} onOpenPipeline={onOpenPipeline} onEditPipeline={() => {}} onAddPipeline={() => {}}
       draftRoutes={orders.spec.routes!} dirty={true}
       setDraftRoutes={() => {}} setDirty={() => {}} />)
     await waitFor(() => expect(screen.getByText('ingest')).toBeInTheDocument())
@@ -196,9 +196,46 @@ describe('ProjectDetail', () => {
     expect(confirmSpy).not.toHaveBeenCalled()                               // no discard prompt
   })
 
+  it('shows both Open pipeline and Edit pipeline when a pipeline node is selected', async () => {
+    render(<ProjectDetail namespace="default" name="orders" readOnly={false}
+      onBack={() => {}} onOpenPipeline={() => {}} onEditPipeline={() => {}} onAddPipeline={() => {}}
+      draftRoutes={orders.spec.routes!} dirty={false}
+      setDraftRoutes={() => {}} setDirty={() => {}} />)
+    await waitFor(() => expect(screen.getByText('ingest')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByText('ingest'))
+    expect(screen.getByRole('button', { name: /Open pipeline/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Edit pipeline/i })).toBeInTheDocument()
+  })
+
+  it('Edit pipeline calls onEditPipeline with the node id', async () => {
+    const onEditPipeline = vi.fn()
+    render(<ProjectDetail namespace="default" name="orders" readOnly={false}
+      onBack={() => {}} onOpenPipeline={() => {}} onEditPipeline={onEditPipeline} onAddPipeline={() => {}}
+      draftRoutes={orders.spec.routes!} dirty={false}
+      setDraftRoutes={() => {}} setDirty={() => {}} />)
+    await waitFor(() => expect(screen.getByText('ingest')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByText('ingest'))
+    await userEvent.click(screen.getByRole('button', { name: /Edit pipeline/i }))
+    expect(onEditPipeline).toHaveBeenCalledWith('ingest')
+  })
+
+  it('hides Edit pipeline in read-only mode', async () => {
+    render(<ProjectDetail namespace="default" name="orders" readOnly={true}
+      onBack={() => {}} onOpenPipeline={() => {}} onEditPipeline={() => {}} onAddPipeline={() => {}}
+      draftRoutes={orders.spec.routes!} dirty={false}
+      setDraftRoutes={() => {}} setDirty={() => {}} />)
+    await waitFor(() => expect(screen.getByText('ingest')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByText('ingest'))
+    expect(screen.getByRole('button', { name: /Open pipeline/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Edit pipeline/i })).toBeNull()
+  })
+
   it('hides + Router in read-only mode', async () => {
     render(<ProjectDetail namespace="default" name="orders" readOnly={true}
-      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+      onBack={() => {}} onOpenPipeline={() => {}} onEditPipeline={() => {}} onAddPipeline={() => {}} />)
     await waitFor(() => expect(screen.getByText('ingest')).toBeInTheDocument())
     expect(screen.queryByRole('button', { name: /\+ Router/i })).toBeNull()
   })
@@ -217,7 +254,7 @@ describe('ProjectDetail', () => {
           <button onClick={() => setMounted(m => !m)}>toggle-mount</button>
           {mounted ? (
             <ProjectDetail namespace="default" name="orders" readOnly={false}
-              onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}}
+              onBack={() => {}} onOpenPipeline={() => {}} onEditPipeline={() => {}} onAddPipeline={() => {}}
               draftRoutes={draftRoutes} dirty={dirty}
               setDraftRoutes={setDraftRoutes} setDirty={setDirty} />
           ) : <div>excursion</div>}
@@ -262,7 +299,7 @@ describe('ProjectDetail caches', () => {
   it('shows the cache node, its bucket/status and the "used by" list', async () => {
     server.use(http.get('/api/v1/namespaces/default/pipelineprojects/orders', () => HttpResponse.json(withCache)))
     render(<ProjectDetail namespace="default" name="orders" readOnly={false}
-      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+      onBack={() => {}} onOpenPipeline={() => {}} onEditPipeline={() => {}} onAddPipeline={() => {}} />)
     await waitFor(() => expect(screen.getByText('shared')).toBeInTheDocument())
     await userEvent.click(screen.getByText('shared'))
     expect(screen.getByText('rpc-orders-shared')).toBeInTheDocument()
@@ -273,7 +310,7 @@ describe('ProjectDetail caches', () => {
   it('opens the cache drawer from the "+ Cache" button', async () => {
     server.use(http.get('/api/v1/namespaces/default/pipelineprojects/orders', () => HttpResponse.json(withCache)))
     render(<ProjectDetail namespace="default" name="orders" readOnly={false}
-      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+      onBack={() => {}} onOpenPipeline={() => {}} onEditPipeline={() => {}} onAddPipeline={() => {}} />)
     await waitFor(() => expect(screen.getByText('shared')).toBeInTheDocument())
     await userEvent.click(screen.getByRole('button', { name: /\+ Cache/i }))
     expect(screen.getByRole('button', { name: /Save cache/i })).toBeInTheDocument()
@@ -296,7 +333,7 @@ describe('ProjectDetail multilevel caches', () => {
   it('shows the multilevel link on the map and a Layers list in the panel', async () => {
     server.use(http.get('/api/v1/namespaces/default/pipelineprojects/orders', () => HttpResponse.json(withLevels)))
     render(<ProjectDetail namespace="default" name="orders" readOnly={false}
-      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+      onBack={() => {}} onOpenPipeline={() => {}} onEditPipeline={() => {}} onAddPipeline={() => {}} />)
     await waitFor(() => expect(screen.getByText('leveled')).toBeInTheDocument())
     expect(screen.getByText('L1')).toBeInTheDocument()        // cacheLink edge label on the map
     await userEvent.click(screen.getByText('leveled'))         // select the composer cache node

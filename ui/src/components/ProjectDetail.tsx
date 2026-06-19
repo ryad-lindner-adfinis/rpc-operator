@@ -17,6 +17,7 @@ interface Props {
   readOnly: boolean
   onBack: () => void
   onOpenPipeline: (pipeline: string) => void
+  onEditPipeline: (pipeline: string) => void
   /** Opens the pipeline editor with projectRef pre-filled. */
   onAddPipeline: (project: string) => void
   // Optional lifted draft state. App owns these so the draft survives an
@@ -34,7 +35,7 @@ const subjectOf = (project: string, route: string) => `rpc.${project}.${route}`
 const streamOf = (project: string, route: string) => `rpc-${project}-${route}`
 
 export function ProjectDetail({
-  namespace, name, readOnly, onBack, onOpenPipeline, onAddPipeline,
+  namespace, name, readOnly, onBack, onOpenPipeline, onEditPipeline, onAddPipeline,
   draftRoutes: draftRoutesProp, dirty: dirtyProp,
   setDraftRoutes: setDraftRoutesProp, setDirty: setDirtyProp,
   draftCaches: draftCachesProp, setDraftCaches: setDraftCachesProp,
@@ -273,7 +274,7 @@ export function ProjectDetail({
               onOpenPipeline={onOpenPipeline}
             />
           ) : (
-            <PipelinePanel node={selectedNode} routes={draftRoutes} onOpen={onOpenPipeline} />
+            <PipelinePanel node={selectedNode} routes={draftRoutes} readOnly={readOnly} onOpen={onOpenPipeline} onEdit={onEditPipeline} />
           )}
         </aside>
       </div>
@@ -418,8 +419,8 @@ function CachePanel({ node, cache, status, uses, layers, readOnly, onEdit, onDel
   )
 }
 
-function PipelinePanel({ node, routes, onOpen }: {
-  node: TopoNode; routes: ProjectRoute[]; onOpen: (p: string) => void
+function PipelinePanel({ node, routes, readOnly, onOpen, onEdit }: {
+  node: TopoNode; routes: ProjectRoute[]; readOnly: boolean; onOpen: (p: string) => void; onEdit: (p: string) => void
 }) {
   const incoming = routes.filter(r => r.to.some(t => t.pipeline === node.id)).map(r => r.name)
   const outgoing = routes.filter(r => r.from === node.id).map(r => r.name)
@@ -432,8 +433,11 @@ function PipelinePanel({ node, routes, onOpen }: {
       <Row label="Role" value={role} />
       <Row label="Incoming routes" value={incoming.join(', ') || '—'} />
       <Row label="Outgoing routes" value={outgoing.join(', ') || '—'} />
-      <div style={{ marginTop: 16 }}>
+      <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
         <button onClick={() => onOpen(node.id)} style={toolbarBtnStyle}>Open pipeline</button>
+        {!readOnly && (
+          <button onClick={() => onEdit(node.id)} style={toolbarBtnStyle}>Edit pipeline</button>
+        )}
       </div>
     </div>
   )
