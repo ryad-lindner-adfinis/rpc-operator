@@ -205,6 +205,10 @@ export default function App() {
   async function editPipelineByName(pipelineName: string, origin: EditorOrigin) {
     try {
       const loaded = await getPipeline(namespace, pipelineName)
+      // The editor views render only inside the `pipelines` section; without this
+      // switch an edit launched from the project map (section `projects`) updates
+      // `view` but nothing renders. Mirrors openPipelineByName's setSection.
+      setSection('pipelines')
       handleEdit(loaded, origin)
     } catch (e) {
       toast.error('Could not open pipeline: ' + (e as Error).message)
