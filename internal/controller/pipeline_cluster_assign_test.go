@@ -18,6 +18,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -728,6 +729,61 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		Expect(k8sClient.Get(ctx, nn, &p)).To(Succeed())
 		Expect(apimeta.FindStatusCondition(p.Status.Conditions, "StreamActive")).To(BeNil())
+	})
+
+	It("deletes the assigned stream when the CR is deleted (issue #1)", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "cdel", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "cdel", 0)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p-del", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "cdel", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		nn := assign("p-del")
+		url := clusterPodURL("cdel", namespace, 0)
+		Expect(fake.Has(url, "p-del")).To(BeTrue())
+
+		// Delete the CR: the finalizer keeps the object until the reconciler
+		// runs the cleanup path.
+		var p rpcv1alpha1.Pipeline
+		Expect(k8sClient.Get(ctx, nn, &p)).To(Succeed())
+		Expect(k8sClient.Delete(ctx, &p)).To(Succeed())
+
+		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		// Stream evicted from the instance pod, and the finalizer released so
+		// the CR is gone.
+		Expect(fake.Has(url, "p-del")).To(BeFalse())
+		Expect(apierrors.IsNotFound(k8sClient.Get(ctx, nn, &p))).To(BeTrue())
+	})
+
+	It("deletes the CR without error when no stream is placed (pod-mode)", func() {
+		// No clusterRef: the pipeline never holds a stream placement, so the
+		// cleanup path must be a no-op and still release the finalizer.
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p-pod-del", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		nn := types.NamespacedName{Name: "p-pod-del", Namespace: namespace}
+		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn}) // adds finalizer
+		Expect(err).NotTo(HaveOccurred())
+
+		var p rpcv1alpha1.Pipeline
+		Expect(k8sClient.Get(ctx, nn, &p)).To(Succeed())
+		Expect(k8sClient.Delete(ctx, &p)).To(Succeed())
+
+		_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(apierrors.IsNotFound(k8sClient.Get(ctx, nn, &p))).To(BeTrue())
 	})
 
 	AfterEach(func() {
