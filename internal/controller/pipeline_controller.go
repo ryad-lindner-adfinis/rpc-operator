@@ -87,7 +87,14 @@ func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// Deletion path: finalizer cleanup, then exit.
 	if !pipe.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(&pipe, finalizerName) {
-			// OwnerReferences GC the children; nothing external to clean up in v0.1.
+			// OwnerReferences GC the pod-mode children, but a clusterRef/projectRef
+			// pipeline runs as a stream inside a shared instance pod that no
+			// OwnerReference covers. Tear that stream down before releasing the
+			// finalizer, else it keeps consuming events (and holding NATS consumer
+			// state) until the pod restarts. Idempotent + no-op when unplaced.
+			if err := r.deleteAssignedStream(ctx, &pipe); err != nil {
+				return ctrl.Result{}, err
+			}
 			controllerutil.RemoveFinalizer(&pipe, finalizerName)
 			if err := r.Update(ctx, &pipe); err != nil {
 				return ctrl.Result{}, err
