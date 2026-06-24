@@ -18,6 +18,8 @@ package controller
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -168,19 +170,32 @@ func (r *PipelineReconciler) handleClusterAssigned(
 		body = substituteSecrets(body, pipe.Spec.SecretRefs, values)
 	}
 	podURL := clusterPodURL(cluster.Name, pipe.Namespace, ordinal)
-	if err := r.ensureStreamPresent(ctx, podURL, pipe.Name, body); err != nil {
-		// A 4xx rejection (e.g. lint errors) is permanent: record it in status so
-		// the user sees why the pipeline won't start, instead of requeuing forever
-		// on an error that an identical config will always reproduce. Transient
-		// failures (5xx, transport) are returned so controller-runtime retries.
-		var rejected *streams.ConfigRejectedError
-		if errors.As(err, &rejected) {
-			return r.markClusterFailed(ctx, pipe, "StreamConfigInvalid", rejected.Body)
-		}
-		return ctrl.Result{}, fmt.Errorf("ensure stream: %w", err)
-	}
-
 	instance := fmt.Sprintf("%s-%d", cluster.Name, ordinal)
+
+	// Only (re)deploy the stream when the desired config or placement changed, or
+	// when the stream has gone missing on the instance (self-heal). Without this
+	// gate the periodic resync re-PUTs an identical config every cycle, tearing the
+	// stream down and recreating it (~every resyncInterval).
+	desiredHash := streamConfigHash(instance, body)
+	needDeploy := pipe.Status.StreamConfigHash != desiredHash
+	if !needDeploy {
+		if _, err := r.Streams.GetStreamStatus(ctx, podURL, pipe.Name); errors.Is(err, streams.ErrStreamNotFound) {
+			needDeploy = true
+		}
+	}
+	if needDeploy {
+		if err := r.ensureStreamPresent(ctx, podURL, pipe.Name, body); err != nil {
+			// A 4xx rejection (e.g. lint errors) is permanent: record it in status so
+			// the user sees why the pipeline won't start, instead of requeuing forever
+			// on an error that an identical config will always reproduce. Transient
+			// failures (5xx, transport) are returned so controller-runtime retries.
+			var rejected *streams.ConfigRejectedError
+			if errors.As(err, &rejected) {
+				return r.markClusterFailed(ctx, pipe, "StreamConfigInvalid", rejected.Body)
+			}
+			return ctrl.Result{}, fmt.Errorf("ensure stream: %w", err)
+		}
+	}
 	reason, msg := "Assigned", fmt.Sprintf("stream running on %s", instance)
 	if pipe.Status.AssignedCluster == cluster.Name && pipe.Status.AssignedInstance != "" && pipe.Status.AssignedInstance != instance {
 		reason = "Rescheduling"
@@ -188,7 +203,7 @@ func (r *PipelineReconciler) handleClusterAssigned(
 	}
 	cond := metav1.Condition{Type: "Ready", Status: metav1.ConditionTrue, Reason: reason, Message: msg}
 	sa := r.streamActiveCondition(ctx, podURL, pipe.Name)
-	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseRunning, cluster.Name, instance, pipe.Name, cond, &sa, resyncInterval)
+	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseRunning, cluster.Name, instance, pipe.Name, desiredHash, cond, &sa, resyncInterval)
 }
 
 // deleteAssignedStream deletes the pipeline's stream on its currently assigned
@@ -224,6 +239,14 @@ func (r *PipelineReconciler) ensureStreamPresent(ctx context.Context, podURL, id
 		return r.Streams.EnsureStream(ctx, podURL, id, body)
 	}
 	return nil
+}
+
+// streamConfigHash returns a stable hash of a stream's desired placement and
+// rendered config body. The reconciler compares it against the last-deployed hash
+// to skip redundant re-deploys on periodic resyncs.
+func streamConfigHash(instance, body string) string {
+	sum := sha256.Sum256([]byte(instance + "\x00" + body))
+	return hex.EncodeToString(sum[:])
 }
 
 // handleClusterFallback runs when spec.clusterRef has been cleared but the
@@ -285,12 +308,12 @@ func (r *PipelineReconciler) deletePodModeChildren(ctx context.Context, pipe *rp
 
 func (r *PipelineReconciler) markClusterFailed(ctx context.Context, pipe *rpcv1alpha1.Pipeline, reason, msg string) (ctrl.Result, error) {
 	cond := metav1.Condition{Type: "Ready", Status: metav1.ConditionFalse, Reason: reason, Message: msg}
-	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseFailed, "", "", "", cond, nil, resyncInterval)
+	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseFailed, "", "", "", "", cond, nil, resyncInterval)
 }
 
 func (r *PipelineReconciler) markClusterPending(ctx context.Context, pipe *rpcv1alpha1.Pipeline, reason, msg string) (ctrl.Result, error) {
 	cond := metav1.Condition{Type: "Ready", Status: metav1.ConditionFalse, Reason: reason, Message: msg}
-	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhasePending, "", "", "", cond, nil, resyncInterval)
+	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhasePending, "", "", "", "", cond, nil, resyncInterval)
 }
 
 // streamActiveCondition reads the placed stream's runtime status and maps it to a
@@ -316,7 +339,7 @@ func (r *PipelineReconciler) streamActiveCondition(ctx context.Context, podURL, 
 // any existing StreamActive (the pipeline is no longer placed). D2/D5.
 func (r *PipelineReconciler) writeClusterStatus(
 	ctx context.Context, pipe *rpcv1alpha1.Pipeline,
-	phase rpcv1alpha1.PipelinePhase, assignedCluster, assignedInstance, streamID string,
+	phase rpcv1alpha1.PipelinePhase, assignedCluster, assignedInstance, streamID, streamConfigHash string,
 	cond metav1.Condition, streamActive *metav1.Condition, requeueAfter time.Duration,
 ) (ctrl.Result, error) {
 	existing := apimeta.FindStatusCondition(pipe.Status.Conditions, "Ready")
@@ -336,12 +359,14 @@ func (r *PipelineReconciler) writeClusterStatus(
 		pipe.Status.AssignedCluster != assignedCluster ||
 		pipe.Status.AssignedInstance != assignedInstance ||
 		pipe.Status.StreamID != streamID ||
+		pipe.Status.StreamConfigHash != streamConfigHash ||
 		pipe.Status.PodName != "" ||
 		pipe.Status.ObservedGeneration != pipe.Generation {
 		pipe.Status.Phase = phase
 		pipe.Status.AssignedCluster = assignedCluster
 		pipe.Status.AssignedInstance = assignedInstance
 		pipe.Status.StreamID = streamID
+		pipe.Status.StreamConfigHash = streamConfigHash
 		pipe.Status.PodName = ""
 		pipe.Status.ObservedGeneration = pipe.Generation
 		apimeta.SetStatusCondition(&pipe.Status.Conditions, cond)

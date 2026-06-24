@@ -272,6 +272,13 @@ spec:
                 type: string
               podName:
                 type: string
+              streamConfigHash:
+                description: |-
+                  StreamConfigHash is a hash of the stream config (placement + rendered body)
+                  last successfully deployed. The reconciler skips re-deploying the stream on a
+                  periodic resync when this still matches the desired config, avoiding an
+                  unnecessary tear-down/recreate every reconcile.
+                type: string
               streamID:
                 description: |-
                   StreamID is the deployed stream ID (= pipeline name); empty in pod mode.

@@ -155,6 +155,13 @@ type PipelineStatus struct {
 	// +optional
 	StreamID string `json:"streamID,omitempty"`
 
+	// StreamConfigHash is a hash of the stream config (placement + rendered body)
+	// last successfully deployed. The reconciler skips re-deploying the stream on a
+	// periodic resync when this still matches the desired config, avoiding an
+	// unnecessary tear-down/recreate every reconcile.
+	// +optional
+	StreamConfigHash string `json:"streamConfigHash,omitempty"`
+
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 

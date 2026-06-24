@@ -21,6 +21,9 @@ type FakeClient struct {
 	mu      sync.Mutex
 	streams map[string]map[string]string // podBaseURL -> streamID -> configYAML
 	caches  map[string]map[string]string // podBaseURL -> label -> configYAML
+	// EnsureCount counts every EnsureStream call (test helper) so tests can assert
+	// the reconciler does not re-deploy an unchanged stream on a periodic resync.
+	EnsureCount int
 	// EnsureErr, when non-nil, is returned by EnsureStream instead of recording.
 	EnsureErr error
 	// DropNextEnsure, when true, makes the next EnsureStream return nil WITHOUT
@@ -48,6 +51,7 @@ func NewFakeClient() *FakeClient {
 func (f *FakeClient) EnsureStream(_ context.Context, podBaseURL, streamID, configYAML string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.EnsureCount++
 	if f.EnsureErr != nil {
 		return f.EnsureErr
 	}

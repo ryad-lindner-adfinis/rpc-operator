@@ -398,6 +398,43 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		Expect(fake.Has(url, "p11")).To(BeTrue()) // resync re-asserted the stream
 	})
 
+	It("does not re-deploy the stream on a resync when config is unchanged, but re-deploys when the stream is dropped", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "c20", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "c20", 0)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p20", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c20", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		nn := assign("p20")
+		url := "http://c20-0.c20." + namespace + ".svc:4195"
+		Expect(fake.Has(url, "p20")).To(BeTrue())
+
+		// The deployed config hash is recorded in status.
+		Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
+		Expect(pipe.Status.StreamConfigHash).NotTo(BeEmpty())
+
+		// A periodic resync with no config change must NOT re-deploy the stream
+		// (this is the fix: avoids the ~resyncInterval tear-down/recreate churn).
+		before := fake.EnsureCount
+		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(fake.EnsureCount).To(Equal(before), "unchanged-config resync must not re-deploy the stream")
+
+		// If the stream is dropped (pod restart), the next resync must re-deploy it.
+		fake.DropPod(url)
+		_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(fake.EnsureCount).To(BeNumerically(">", before), "dropped stream must be re-deployed (self-heal)")
+		Expect(fake.Has(url, "p20")).To(BeTrue())
+	})
+
 	It("reschedules onto a remaining instance and sets the Rescheduling reason on scale-down", func() {
 		cluster := &rpcv1alpha1.PipelineCluster{
 			ObjectMeta: metav1.ObjectMeta{Name: "c12", Namespace: namespace},
@@ -666,6 +703,11 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		Expect(k8sClient.Get(ctx, nn, &p)).To(Succeed())
 		Expect(apimeta.FindStatusCondition(p.Status.Conditions, "StreamActive")).NotTo(BeNil())
 
+		// The reconciler skips re-deploying an unchanged, present stream, so force a
+		// real deploy attempt by dropping the stream first; that re-deploy is then
+		// rejected, driving markClusterFailed.
+		url := "http://ca5-0.ca5." + namespace + ".svc:4195"
+		fake.DropPod(url)
 		fake.EnsureErr = &streams.ConfigRejectedError{StreamID: "p-then-fail", Status: 400, Body: "lint"}
 		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
 		Expect(err).NotTo(HaveOccurred())
