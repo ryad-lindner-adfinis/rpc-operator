@@ -23,6 +23,9 @@ type FakeClient struct {
 	caches  map[string]map[string]string // podBaseURL -> label -> configYAML
 	// EnsureErr, when non-nil, is returned by EnsureStream instead of recording.
 	EnsureErr error
+	// DropNextEnsure, when true, makes the next EnsureStream return nil WITHOUT
+	// recording the stream (models a 2xx PUT that the instance does not load). One-shot.
+	DropNextEnsure bool
 	// EnsureCacheErr, when non-nil, is returned by EnsureCacheResource instead of recording.
 	EnsureCacheErr error
 	// GetErr, when non-nil, is returned by GetStreamStatus instead of a status.
@@ -47,6 +50,10 @@ func (f *FakeClient) EnsureStream(_ context.Context, podBaseURL, streamID, confi
 	defer f.mu.Unlock()
 	if f.EnsureErr != nil {
 		return f.EnsureErr
+	}
+	if f.DropNextEnsure {
+		f.DropNextEnsure = false
+		return nil
 	}
 	if f.streams[podBaseURL] == nil {
 		f.streams[podBaseURL] = map[string]string{}

@@ -168,7 +168,7 @@ func (r *PipelineReconciler) handleClusterAssigned(
 		body = substituteSecrets(body, pipe.Spec.SecretRefs, values)
 	}
 	podURL := clusterPodURL(cluster.Name, pipe.Namespace, ordinal)
-	if err := r.Streams.EnsureStream(ctx, podURL, pipe.Name, body); err != nil {
+	if err := r.ensureStreamPresent(ctx, podURL, pipe.Name, body); err != nil {
 		// A 4xx rejection (e.g. lint errors) is permanent: record it in status so
 		// the user sees why the pipeline won't start, instead of requeuing forever
 		// on an error that an identical config will always reproduce. Transient
@@ -204,6 +204,24 @@ func (r *PipelineReconciler) deleteAssignedStream(ctx context.Context, pipe *rpc
 	}
 	if err := r.Streams.DeleteStream(ctx, clusterPodURL(pipe.Status.AssignedCluster, pipe.Namespace, ord), pipe.Name); err != nil {
 		return fmt.Errorf("delete assigned stream: %w", err)
+	}
+	return nil
+}
+
+// ensureStreamPresent deploys the stream, then confirms it actually loaded on the
+// instance. On the config-update path EnsureStream issues a PUT against an existing
+// stream and trusts a 2xx; if the instance drops the stream during that swap without
+// reloading it, the pipeline is left reporting Running/StreamActive while the instance
+// runs nothing (no desired-vs-actual check). Confirm via the status endpoint and, on a
+// confirmed-missing stream, force a clean recreate (DELETE then create) so reconcile
+// self-heals instead of trusting its own placement.
+func (r *PipelineReconciler) ensureStreamPresent(ctx context.Context, podURL, id, body string) error {
+	if err := r.Streams.EnsureStream(ctx, podURL, id, body); err != nil {
+		return err
+	}
+	if _, err := r.Streams.GetStreamStatus(ctx, podURL, id); errors.Is(err, streams.ErrStreamNotFound) {
+		_ = r.Streams.DeleteStream(ctx, podURL, id) // clear any half-state; 404 is OK
+		return r.Streams.EnsureStream(ctx, podURL, id, body)
 	}
 	return nil
 }
@@ -267,7 +285,7 @@ func (r *PipelineReconciler) deletePodModeChildren(ctx context.Context, pipe *rp
 
 func (r *PipelineReconciler) markClusterFailed(ctx context.Context, pipe *rpcv1alpha1.Pipeline, reason, msg string) (ctrl.Result, error) {
 	cond := metav1.Condition{Type: "Ready", Status: metav1.ConditionFalse, Reason: reason, Message: msg}
-	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseFailed, "", "", "", cond, nil, 0)
+	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseFailed, "", "", "", cond, nil, resyncInterval)
 }
 
 func (r *PipelineReconciler) markClusterPending(ctx context.Context, pipe *rpcv1alpha1.Pipeline, reason, msg string) (ctrl.Result, error) {

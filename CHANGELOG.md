@@ -2,6 +2,34 @@
 
 All notable changes to this project are documented here.
 
+## Fix — clusterRef-Stream wird nach Config-Update nicht neu deployt (Self-Heal) — 2026-06-24
+
+### Behoben
+- **Config-Update einer laufenden clusterRef-Pipeline ließ den Stream verschwinden,
+  ohne ihn neu zu laden.** Wird `spec.rawYAML` einer bereits platzierten clusterRef-Pipeline
+  geändert (z. B. per Server-Side-Apply durch einen Controller), ruft `handleClusterAssigned`
+  `EnsureStream` auf. `EnsureStream` macht auf dem Update-Pfad ein **PUT** auf den schon
+  existierenden Stream und wertet jede 2xx-Antwort als Erfolg, **ohne zu prüfen, ob die neue
+  Konfiguration tatsächlich geladen wurde**. Verwirft die Instanz den Stream während des
+  PUT-Swaps (beobachtet: `GET :4195/streams` auf der Instanz → 0 Streams, dauerhaft), liefert
+  `EnsureStream` trotzdem `nil`. Die Pipeline bleibt mit `phase=Running` / `Ready=True` /
+  `StreamActive=True` stehen, während auf der Instanz nichts läuft. Es gab keinen
+  Soll-Ist-Abgleich, der einen tatsächlich fehlenden Stream erkennt und neu deployt —
+  daher halfen weder ein Neustart der Instanz-Pods noch des Operators noch ein
+  `spec.stopped`-Toggle.
+- **Self-Heal:** Neuer Helper `ensureStreamPresent` deployt den Stream und verifiziert
+  anschließend per `GetStreamStatus`, dass er auf der Instanz vorhanden ist. Meldet die
+  Instanz `ErrStreamNotFound`, wird der Stream sauber neu angelegt (DELETE + create), statt
+  dem eigenen Status zu vertrauen. `handleClusterAssigned` nutzt nun diesen Helper.
+- **`markClusterFailed` hält den Resync am Leben:** Bisher `requeueAfter=0`, sodass eine
+  vorübergehende Swap-Störung die Pipeline in `PhaseFailed` parkte, ohne sich je selbst zu
+  erholen. Jetzt `resyncInterval`, damit der periodische Reconcile erneut versucht zu deployen.
+
+### Offen / zu verifizieren
+- Exakte PUT-Update-Semantik der Redpanda-Connect-Streams-API (sauberer Upsert vs.
+  Stop-and-Drop bei Fehler) konnte nicht live bestätigt werden. Der Fix ist bewusst
+  defensiv (Verify + Recreate) und damit unabhängig von dieser Nuance korrekt.
+
 ## Fix — Cache-Deploy-Fehler sichtbar + Self-Heal — 2026-06-15
 
 ### Behoben

@@ -13,6 +13,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -804,3 +805,21 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		}
 	})
 })
+
+// TestEnsureStreamPresent_SelfHealsWhenStreamDropped models a config-update PUT
+// that returns 2xx but does not actually load the stream on the instance
+// (DropNextEnsure). ensureStreamPresent must detect the missing stream via the
+// status endpoint and recreate it, instead of leaving the pipeline reporting
+// Running/StreamActive while the instance runs nothing.
+func TestEnsureStreamPresent_SelfHealsWhenStreamDropped(t *testing.T) {
+	f := streams.NewFakeClient()
+	f.DropNextEnsure = true
+	r := &PipelineReconciler{Streams: f}
+	url, id := "http://scim-sync-0.scim-sync.dev.svc:4195", "sync-tenant-user"
+	if err := r.ensureStreamPresent(context.Background(), url, id, "config: {}"); err != nil {
+		t.Fatalf("ensureStreamPresent returned error: %v", err)
+	}
+	if !f.Has(url, id) {
+		t.Error("stream missing after self-heal: a dropped config-update was not recreated")
+	}
+}
